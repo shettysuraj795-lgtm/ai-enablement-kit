@@ -131,6 +131,29 @@ def build_server(config: Config, catalogue: dict[str, Metric] | None = None) -> 
         except QueryError as e:
             raise ToolError(str(e)) from e
 
+    @server.tool(
+        name="request_certification",
+        description=(
+            "Ask BI to consider certifying a metric for an exploratory result the user wants to rely on. "
+            "Only after the user agrees. Logs the request; it does not change the result's label."
+        ),
+    )
+    async def request_certification(
+        receipt_id: Annotated[str, Field(pattern=r"^rcpt_[0-9A-Z]{26}$", description="The exploratory result's receipt ID.")],
+        question_shape: Annotated[
+            str,
+            Field(
+                max_length=300,
+                description="The question in general terms, e.g. 'average days from listing to sale, by region'. "
+                "No names, IDs or other personal details.",
+            ),
+        ],
+    ) -> dict[str, Any]:
+        try:
+            return service.request_certification(receipt_id, question_shape)
+        except QueryError as e:
+            raise ToolError(str(e)) from e
+
     return server
 
 

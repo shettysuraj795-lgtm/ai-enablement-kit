@@ -16,6 +16,7 @@ CALLS = [
     ("drop_tables", {}),  # unknown tool
     ("explore_sql", {"sql": "SELECT count(*) AS orders FROM marts.fct_orders"}),  # success with receipt
     ("explore_sql", {"sql": "SELECT * FROM raw.orders"}),  # blocked by GR-02
+    ("request_certification", {"receipt_id": "rcpt_" + "0" * 26, "question_shape": "orders by tier"}),  # unknown receipt
 ]
 
 
@@ -29,7 +30,7 @@ def test_one_span_per_call_including_failures(traced):
     results, spans, _ = traced
     assert [s["name"] for s in spans] == [f"tools/call {tool}" for tool, _ in CALLS]
     assert [s["status"]["code"] for s in spans] == ["ERROR" if r.is_error else "OK" for r in results]
-    assert [r.is_error for r in results] == [False, False, False, True, True, True, False, True]
+    assert [r.is_error for r in results] == [False, False, False, True, True, True, False, True, True]
 
 
 def test_spans_follow_the_contract(traced):
@@ -47,9 +48,9 @@ def test_spans_follow_the_contract(traced):
 def test_errors_carry_type_and_reason(traced):
     _, spans, _ = traced
     reasons = [s["attributes"].get("kit.error.reason") for s in spans if s["status"]["code"] == "ERROR"]
-    assert reasons == ["invalid_intent", "invalid_intent", "invalid_intent", "guardrail_blocked"]
+    assert reasons == ["invalid_intent", "invalid_intent", "invalid_intent", "guardrail_blocked", "invalid_intent"]
     assert all(s["attributes"]["error.type"] == "tool_error" for s in spans if s["status"]["code"] == "ERROR")
-    assert spans[-1]["attributes"]["kit.guardrail.hits"] == ["GR-02"]
+    assert spans[7]["attributes"]["kit.guardrail.hits"] == ["GR-02"]
 
 
 def test_receipt_and_span_point_at_each_other(traced):

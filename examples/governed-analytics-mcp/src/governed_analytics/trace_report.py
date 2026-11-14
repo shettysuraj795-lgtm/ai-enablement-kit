@@ -1,4 +1,4 @@
-"""Rollout success metrics and promotion candidates, from the trace log and receipts.
+"""Rollout success metrics and promotion candidates, from the trace log, receipts and certification requests.
 
     python -m governed_analytics.trace_report                # all queries, as tables
     python -m governed_analytics.trace_report --min-uses 3   # stricter promotion queue
@@ -34,8 +34,8 @@ def report(log_dir: Path, min_uses: int = 2) -> dict[str, list[dict[str, Any]]]:
     setup, queries = split_queries(QUERIES.read_text())
     con = duckdb.connect()  # in memory; the warehouse is never opened here
     with tempfile.NamedTemporaryFile(suffix=".jsonl") as empty:  # keeps the views valid on a fresh install
-        for name in ("traces", "receipts"):
-            path = log_dir / f"{name}.jsonl"
+        for name, file in (("traces", "traces"), ("receipts", "receipts"), ("requests", "certification_requests")):
+            path = log_dir / f"{file}.jsonl"
             con.execute(f"SET VARIABLE {name} = ?", [str(path if path.exists() else empty.name)])
         con.execute("SET VARIABLE min_uses = ?", [min_uses])
         con.execute(setup)

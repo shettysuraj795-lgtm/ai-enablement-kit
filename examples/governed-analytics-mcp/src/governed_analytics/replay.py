@@ -41,14 +41,7 @@ class Replay:
 
 
 def find_receipt(config: Config, receipt_id: str) -> dict | None:
-    path = config.log_dir / "receipts.jsonl"
-    if not path.exists():
-        return None
-    for line in path.read_text().splitlines():
-        receipt = json.loads(line)
-        if receipt["receipt_id"] == receipt_id:
-            return receipt
-    return None
+    return receipts.find(config.log_dir / "receipts.jsonl", receipt_id)
 
 
 def metric_at_version(name: str, version: str) -> Metric | None:

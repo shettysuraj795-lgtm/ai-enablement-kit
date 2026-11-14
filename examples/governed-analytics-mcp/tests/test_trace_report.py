@@ -42,7 +42,7 @@ def test_every_named_query_runs():
     _, queries = split_queries(QUERIES.read_text())
     assert list(queries) == [
         "overview", "by_tool", "certified_share_by_persona", "errors_by_reason",
-        "guardrail_hits", "promotion_candidates", "uncertified_metric_usage",
+        "guardrail_hits", "promotion_candidates", "uncertified_metric_usage", "certification_requests",
     ]
 
 

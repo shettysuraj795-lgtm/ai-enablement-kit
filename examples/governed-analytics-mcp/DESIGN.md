@@ -11,7 +11,9 @@ The design note that [`mcp-tool-design`](../../skills/community/mcp-tool-design/
 | `query_metric` | "What was *metric* for *period*, by *dimension*?" | `metric`, `time_grain`, `period` or `start`+`end`, `dimensions`, `filters`, optional `question` | Rows, metric definition and version, `certified`/`exploratory` label, resolved time range, receipt ID, reporting instruction |
 | `explore_sql` | "No metric covers this; can you look it up anyway?" | `sql` (one SELECT over the marts), optional `question` | Rows, the SQL that ran, label always `exploratory`, receipt ID, and an instruction to say it is exploratory and suggest certification if it will be reused |
 
-Planned: `request_certification`. Until then the certification offer is text in `explore_sql`'s reporting instruction, and the trace queries surface candidates.
+| `request_certification` | "Can BI make this an official number?" | `receipt_id` (exploratory), `question_shape` (general terms, at most 300 characters) | A request ID; appends to `certification_requests.jsonl`, linked to the receipt's SQL fingerprint |
+
+`request_certification` returns no data, so it writes no receipt; it is traced like every call. It refuses certified receipts and unknown IDs. `question_shape` is free text, so the retention command purges it with `kit.question` (GR-04).
 
 ## Replay
 
@@ -40,7 +42,7 @@ All seven metrics from [metric catalogue v0](../../docs/contracts/metric-catalog
 
 | Step | Choice in this server | Where |
 |---|---|---|
-| 1. Name the intents | Three intent-named tools (`list_metrics`, `describe_metric`, `query_metric`); no `run_sql` on the governed path | `server.py` |
+| 1. Name the intents | Five intent-named tools (`list_metrics`, `describe_metric`, `query_metric`, `explore_sql`, `request_certification`); no `run_sql` on the governed path | `server.py` |
 | 2. Type every argument | `metric`, `dimensions`, `time_grain`, `period` and filter `op` are enums built from the catalogue; dates are typed; relative periods are resolved on the server against a recorded as-of date | `server.py`, `periods.py` |
 | 3. Compile deterministically | The model fills in the intent; `compile_intent` produces the SQL; dimensions and filters are sorted so order doesn't matter | `compiler.py` |
 | 4. Provenance on every result | The response carries the metric's definition and version, the label, the time range and a receipt ID, plus an instruction to report them | `service.py` |
@@ -117,5 +119,6 @@ Model-in-the-loop checks are reported as `needs-model`, never counted as passes.
 | `errors_by_reason`, `guardrail_hits` | Where people get stuck; which GR controls fire | Tool enablement, `guardrail-review` |
 | `promotion_candidates` | Exploratory queries reused at least `--min-uses` times (default 2), grouped by SQL shape, so different dates count as one question, with who asked and an example question | BI's certification queue |
 | `uncertified_metric_usage` | Governed but uncertified metrics in use | BI: certify the definition or retire it |
+| `certification_requests` | Explicit requests, grouped by SQL shape, with how often that shape was used | BI's certification queue, ranked by demand |
 
 Fields are extracted from raw JSON by path, so a new span attribute never breaks the views. Example questions disappear once retention purges `kit.question` (GR-04), but the counts stay.

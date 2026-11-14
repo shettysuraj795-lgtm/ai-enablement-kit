@@ -11,7 +11,7 @@ from support import CONFIG, LAST_QUARTER, call_many, make_config, needs_warehous
 
 from governed_analytics.catalogue import CatalogueError, load_catalogue
 from governed_analytics.manifest import load_manifest
-from governed_analytics.retention import purge_questions
+from governed_analytics.retention import purge_questions, purge_request_shapes
 from governed_analytics.server import build_server
 from governed_analytics.service import connect_read_only
 from governed_analytics.validate import against_manifest
@@ -131,3 +131,20 @@ def test_explore_sql_description_hides_pii_columns(tmp_path):
 
     description = asyncio.run(go())["explore_sql"].description
     assert "marts.fct_orders" in description and "buyer_id" not in description
+
+
+def test_retention_removes_old_request_shapes_only(tmp_path):
+    config = make_config(tmp_path)
+    explored = call_many(config, [("explore_sql", {"sql": "SELECT count(*) AS n FROM marts.fct_listings"})])
+    receipt_id = explored[0].structured_content["receipt_id"]
+    call_many(config, [("request_certification", {"receipt_id": receipt_id, "question_shape": "old shape"}),
+                       ("request_certification", {"receipt_id": receipt_id, "question_shape": "new shape"})])
+    path = tmp_path / "certification_requests.jsonl"
+    requests = read_jsonl(path)
+    requests[0]["created_at"] = "2026-09-01T09:00:00.000Z"
+    path.write_text("".join(json.dumps(r) + "\n" for r in requests))
+
+    assert purge_request_shapes(path, now=dt.datetime(2026, 11, 14, tzinfo=dt.UTC), days=30) == 1
+    old, new = read_jsonl(path)
+    assert "question_shape" not in old and new["question_shape"] == "new shape"
+    assert old["sql_fingerprint"] == new["sql_fingerprint"]  # the queue keeps its counts

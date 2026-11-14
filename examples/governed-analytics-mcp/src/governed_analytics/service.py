@@ -196,8 +196,46 @@ class QueryService:
             "receipt_id": receipt["receipt_id"],
             "how_to_report": (
                 "Say plainly that this is an exploratory result, not a certified metric, and quote receipt "
-                f"{receipt['receipt_id']}. If the user will rely on it again, suggest asking BI to certify a "
-                "metric for it." + (f" Only the first {len(rows)} rows are shown." if truncated else "")
+                f"{receipt['receipt_id']}. If the user will rely on it again, offer to call "
+                "request_certification with this receipt ID." + (f" Only the first {len(rows)} rows are shown." if truncated else "")
+            ),
+        }
+
+    def request_certification(self, receipt_id: str, question_shape: str) -> dict[str, Any]:
+        """Queue an exploratory result for BI to consider certifying. Returns no data, so no receipt."""
+        receipt = receipts.find(self.config.log_dir / "receipts.jsonl", receipt_id)
+        if receipt is None:
+            raise QueryError(
+                f"No receipt {receipt_id}. Use the receipt_id returned by explore_sql or query_metric.",
+                "invalid_intent",
+            )
+        if receipt["classification"] == "certified":
+            raise QueryError(
+                f"Receipt {receipt_id} is already a certified result ({receipt['intent']['metric']}); "
+                "there is nothing to certify.",
+                "invalid_intent",
+            )
+        trace_id, span_id = tracing.current_ids()
+        request = {
+            "request_id": receipts.new_id("creq"),
+            "created_at": dt.datetime.now(dt.UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z"),
+            "receipt_id": receipt_id,
+            "source": receipt["source"],
+            "metric": (receipt["intent"] or {}).get("metric"),  # set for an uncertified metric
+            "sql_fingerprint": receipt["sql_fingerprint"],
+            "question_shape": question_shape,  # purged with kit.question under GR-04 retention
+            "persona": self.config.persona,
+            "trace_id": trace_id,
+            "span_id": span_id,
+        }
+        receipts.append(self.config.log_dir / "certification_requests.jsonl", request)
+        tracing.annotate(**{"kit.certification_request.id": request["request_id"]})
+        return {
+            "request_id": request["request_id"],
+            "status": "queued for BI review",
+            "next_step": (
+                f"Tell the user the request {request['request_id']} is logged for BI, who decide whether to "
+                "certify a metric. Until then the answer stays exploratory."
             ),
         }
 

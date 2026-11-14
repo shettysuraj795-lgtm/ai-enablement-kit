@@ -4,6 +4,9 @@ Every change to a requirement's wording is recorded here, newest first. A change
 
 ## 14 Nov 2026
 
+- **GR-04 (Personal data is never returned or logged), *Retention* and *How to verify*.** Retention now also covers `question_shape` in certification requests.
+  - **Why:** `request_certification` stores the user's question in general terms. Even when it's asked for without personal details, it's free text derived from a question, so it gets the same retention as `kit.question` instead of becoming a second, unpurged copy.
+  - **Reports made stale:** none.
 - **GR-02 (Exploratory SQL is limited to an allow-list), *Enforced by*.** It now says the server executes the SQL regenerated from the checked tree.
   - **Why:** if the server checks one string and runs another, any difference between how sqlglot and DuckDB parse it becomes a bypass. Running the regenerated SQL removes that gap.
   - **Reports made stale:** none.

@@ -67,6 +67,22 @@ def data_snapshot(dbt_target: Path) -> dict[str, str]:
     return {"snapshot_at": metadata["generated_at"], "dbt_invocation_id": metadata["invocation_id"]}
 
 
+def find(path: Path, receipt_id: str) -> dict | None:
+    """The stored receipt with this ID, or None."""
+    if not path.exists():
+        return None
+    for line in path.read_text().splitlines():
+        receipt = json.loads(line)
+        if receipt["receipt_id"] == receipt_id:
+            return receipt
+    return None
+
+
+def new_id(prefix: str) -> str:
+    """`<prefix>_` plus a ULID, as for receipt IDs."""
+    return prefix + new_receipt_id()[len("rcpt"):]
+
+
 def append(path: Path, record: dict) -> None:
     """Append one JSON object as one line. Shared by receipts and traces."""
     path.parent.mkdir(parents=True, exist_ok=True)

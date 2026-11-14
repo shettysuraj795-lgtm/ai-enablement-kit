@@ -4,6 +4,7 @@
 -- setting the two paths:
 --   SET VARIABLE traces = 'logs/traces.jsonl';
 --   SET VARIABLE receipts = 'logs/receipts.jsonl';
+--   SET VARIABLE requests = 'logs/certification_requests.jsonl';
 --   SET VARIABLE min_uses = 2;
 --   .read analytics/trace_queries.sql
 --
@@ -38,6 +39,18 @@ SELECT
     json_extract_string(j, '$.sql_fingerprint') AS sql_fingerprint,
     json_extract_string(j, '$.compiled_sql') AS compiled_sql
 FROM read_ndjson_objects(getvariable('receipts')) AS t(j);
+
+CREATE OR REPLACE VIEW certification_requests AS
+SELECT
+    json_extract_string(j, '$.request_id') AS request_id,
+    json_extract_string(j, '$.created_at')::TIMESTAMP AS created_at,
+    json_extract_string(j, '$.receipt_id') AS receipt_id,
+    json_extract_string(j, '$.source') AS source,
+    json_extract_string(j, '$.metric') AS metric,
+    json_extract_string(j, '$.sql_fingerprint') AS sql_fingerprint,
+    json_extract_string(j, '$.question_shape') AS question_shape,
+    json_extract_string(j, '$.persona') AS persona
+FROM read_ndjson_objects(getvariable('requests')) AS t(j);
 
 -- name: overview
 -- One row: volume, certified share of data answers, error rate, latency.
@@ -117,3 +130,17 @@ FROM spans
 WHERE tool = 'query_metric' AND classification = 'exploratory'
 GROUP BY metric
 ORDER BY uses DESC, metric;
+
+-- name: certification_requests
+-- Explicit requests, grouped like promotion candidates, with how often that query shape was used.
+SELECT
+    coalesce(c.metric, 'explore_sql') AS what,
+    c.sql_fingerprint,
+    count(DISTINCT c.request_id) AS requests,
+    string_agg(DISTINCT c.persona, ', ' ORDER BY c.persona) AS who,
+    max(c.created_at) AS last_requested,
+    any_value(c.question_shape) FILTER (WHERE c.question_shape IS NOT NULL) AS example_shape,
+    (SELECT count(*) FROM receipts AS r WHERE r.sql_fingerprint = c.sql_fingerprint) AS uses
+FROM certification_requests AS c
+GROUP BY c.metric, c.sql_fingerprint
+ORDER BY requests DESC, uses DESC, last_requested DESC;
