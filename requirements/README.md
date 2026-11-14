@@ -20,4 +20,4 @@ Each requirement has an ID, the rule, a rationale, an owner and a way to verify 
 - **Rule wording.** *MUST* and *MUST NOT* are used as in RFC 2119.
 - **Owner.** The team accountable after handover. Until then, the kit maintainer owns every requirement.
 - **Tests.** Each guardrail test carries a pytest marker with its ID, so `pytest -m gr03` runs the evidence for GR-03.
-- **Changes.** IDs are never reused. A retired requirement keeps its file and is marked *Retired*.
+- **Changes.** IDs are never reused. A retired requirement keeps its file and is marked *Retired*. Every wording change is recorded in [CHANGELOG.md](CHANGELOG.md).
