@@ -34,18 +34,18 @@ All seven metrics from [metric catalogue v0](../../docs/contracts/metric-catalog
 
 ## Guardrails
 
+Each requirement has its own test file, `tests/test_grNN_*.py`, tagged so that `pytest -m grNN` runs its evidence.
+
 | ID | Control in this server | Evidence |
 |---|---|---|
-| GR-01 | `duckdb.connect(..., read_only=True)` for every query | `pytest -m gr01` (to write) |
-| GR-02 | No raw SQL on this path; `explore_sql` will carry the allow-list | n/a until `explore_sql` |
-| GR-03 | At most `row_cap + 1` rows fetched; `con.interrupt()` after `timeout_seconds`; `truncated` flag and `GR-03` span hit | `tests/test_server.py::test_row_cap_truncates_and_records_gr03` |
-| GR-04 | PII columns are in no enum; `question` goes only to `kit.question` | `test_receipt_is_written_and_replays`, `test_trace_span_follows_contract` |
-| GR-05 | Receipt appended before the result is returned; replay reproduces the hash | `test_receipt_is_written_and_replays` |
-| GR-06 | Label set from the catalogue's `certified` flag, never by the model | `test_happy_path_returns_golden_answer_with_provenance` |
-| GR-07 | One span per `tools/call`, including failures | `test_trace_span_follows_contract`, `test_schema_rejection_is_still_traced` |
-| GR-08 | Catalogue validation in CI | Not yet built |
-
-The per-requirement `pytest -m grNN` markers come with the guardrail tests. Until then this table is a design claim, not `guardrail-review` evidence.
+| GR-01 | `connect_read_only`: `read_only=True` and `enable_external_access=False` (read-only alone still allows `COPY ... TO`) | `pytest -m gr01` |
+| GR-02 | No raw SQL on the governed path; `explore_sql` will carry the allow-list | Added with `explore_sql` |
+| GR-03 | At most `row_cap + 1` rows fetched; `con.interrupt()` after `timeout_seconds`; `truncated` flag and `GR-03` span hit | `pytest -m gr03` |
+| GR-04 | PII columns from the dbt manifest; the server refuses to start if a metric exposes one; `question` only in `kit.question`; `governed_analytics.retention` purges it | `pytest -m gr04` |
+| GR-05 | Receipt appended before the result is returned; definition and data both replay | `pytest -m gr05` |
+| GR-06 | Label set from the catalogue's `certified` flag; it agrees in response, receipt and span | `pytest -m gr06` |
+| GR-07 | One span per `tools/call` from the middleware, including schema rejections and unknown tools | `pytest -m gr07` |
+| GR-08 | `governed_analytics.validate`: owner, semver and a golden question for certified metrics; major bump for definition changes since `--base` (CI) | `pytest -m gr08` |
 
 ## Configuration
 

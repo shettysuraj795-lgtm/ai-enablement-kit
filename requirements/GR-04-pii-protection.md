@@ -5,7 +5,7 @@
 - **Retention:** `kit.question` MUST be deleted from spans older than the retention period, which defaults to 30 days and is set by IT (security). The rest of the span is kept. Question text MUST NOT be copied into any other field, file or dataset, except golden eval questions that a person has reviewed and rewritten without personal data.
 - **Rationale:** Business teams rarely need row-level personal data to answer a business question. Flagging columns where they are already documented keeps one source of truth. Question text is useful for finding unmet demand and writing evals, but people do type names into questions, so it is kept briefly and in one place.
 - **Owner:** IT (security). BI flags the columns. Until handover: kit maintainer.
-- **Enforced by:** The metric catalogue validator rejects PII columns as dimensions. `explore_sql` rejects queries that reference PII columns, resolved through the dbt manifest. The server writes `question` only to `kit.question`, and a scheduled job deletes that field after the retention period.
+- **Enforced by:** The metric catalogue validator rejects PII columns as dimensions. `explore_sql` rejects queries that reference PII columns, resolved through the dbt manifest. The server checks the catalogue against the manifest at start-up and refuses to serve a PII dimension. It writes `question` only to `kit.question`, and `python -m governed_analytics.retention`, run on a schedule, deletes that field after the retention period.
 - **How to verify:** `pytest -m gr04` checks the following:
   - a metric with a PII dimension fails validation;
   - queries touching PII columns (directly, via `SELECT *` or through a CTE) are blocked;

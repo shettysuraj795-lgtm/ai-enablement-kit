@@ -15,11 +15,13 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import BaseModel, Field
 
-from governed_analytics.catalogue import Metric, load_catalogue, load_glossary
+from governed_analytics.catalogue import CatalogueError, Metric, load_catalogue, load_glossary
 from governed_analytics.intent import OPS
+from governed_analytics.manifest import load_manifest
 from governed_analytics.periods import RELATIVE_PERIODS
 from governed_analytics.service import Config, QueryError, QueryService
 from governed_analytics.tracing import TraceMiddleware
+from governed_analytics.validate import against_manifest
 
 VERSION = "0.1.0"
 GRAINS = ("day", "week", "month", "quarter", "year")
@@ -33,6 +35,9 @@ INSTRUCTIONS = (
 
 def build_server(config: Config, catalogue: dict[str, Metric] | None = None) -> MCPServer:
     catalogue = catalogue or load_catalogue()
+    problems = against_manifest(catalogue, load_manifest(config.dbt_target))
+    if problems:  # e.g. a PII column exposed as a dimension (GR-04): refuse to serve
+        raise CatalogueError("Catalogue does not match the dbt marts:\n" + "\n".join(problems))
     service = QueryService(config, catalogue, load_glossary(catalogue))
     server = MCPServer(
         name="governed-analytics",

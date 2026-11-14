@@ -7,7 +7,6 @@ Needs data/warehouse.duckdb: run the generator and `dbt build` first.
 
 from __future__ import annotations
 
-import duckdb
 import pytest
 import yaml
 from generate import DEFAULT_DB
@@ -17,6 +16,7 @@ from governed_analytics.catalogue import load_catalogue
 from governed_analytics.compiler import compile_intent
 from governed_analytics.evals import results_match
 from governed_analytics.intent import Intent
+from governed_analytics.service import connect_read_only
 
 pytestmark = [
     pytest.mark.integration,
@@ -36,7 +36,7 @@ def _cases():
 def test_matches_golden_answer(expected):
     metric = CATALOGUE[expected["intent"]["metric"]]
     sql = compile_intent(Intent.from_dict(expected["intent"]), metric)
-    with duckdb.connect(str(DEFAULT_DB), read_only=True) as con:
+    with connect_read_only(DEFAULT_DB) as con:
         actual = compute(con, sql)
     assert results_match(actual, expected["result"], expected["tolerance"]), (actual, expected["result"])
     assert expected["classification"] == ("certified" if metric.certified else "exploratory")

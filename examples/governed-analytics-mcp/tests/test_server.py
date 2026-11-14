@@ -7,28 +7,19 @@ Needs data/warehouse.duckdb and dbt/target/run_results.json from `dbt build`.
 from __future__ import annotations
 
 import asyncio
-import dataclasses
-import datetime as dt
 import json
 
-import duckdb
 import pytest
 import yaml
 from golden_answers import GOLDEN
 from mcp import Client
+from support import LAST_QUARTER, call, make_config, needs_warehouse, read_jsonl
 
 from governed_analytics.receipts import render, result_hash
 from governed_analytics.server import build_server
-from governed_analytics.service import Config
+from governed_analytics.service import Config, connect_read_only
 
-CONFIG = Config.from_env()
-pytestmark = [
-    pytest.mark.integration,
-    pytest.mark.skipif(
-        not (CONFIG.warehouse.exists() and (CONFIG.dbt_target / "run_results.json").exists()),
-        reason="warehouse not built: run the generator and `dbt build`",
-    ),
-]
+pytestmark = [pytest.mark.integration, needs_warehouse]
 
 RECEIPT_EXAMPLE_SQL = (
     "SELECT date_trunc('quarter', order_date) AS period, sum(net_amount_eur) AS net_merchandise_value "
@@ -36,26 +27,11 @@ RECEIPT_EXAMPLE_SQL = (
     "AND order_date >= DATE '2026-07-01' AND order_date < DATE '2026-10-01' "
     "GROUP BY period ORDER BY period"
 )
-LAST_QUARTER = {"metric": "net_merchandise_value", "time_grain": "quarter", "period": "last_quarter"}
 
 
 @pytest.fixture
 def config(tmp_path) -> Config:
-    return dataclasses.replace(
-        CONFIG, log_dir=tmp_path, persona="finance_analyst", as_of=dt.date(2026, 11, 14)
-    )
-
-
-def call(config: Config, arguments: dict, tool: str = "query_metric"):
-    async def go():
-        async with Client(build_server(config)) as client:
-            return await client.call_tool(tool, arguments)
-
-    return asyncio.run(go())
-
-
-def read_jsonl(path) -> list[dict]:
-    return [json.loads(line) for line in path.read_text().splitlines()] if path.exists() else []
+    return make_config(tmp_path)
 
 
 def golden(question_id: str) -> dict:
@@ -132,7 +108,7 @@ def test_receipt_is_written_and_replays(config):
     assert "question" not in json.dumps(receipt)  # GR-04: questions never reach receipts
 
     # Replay (GR-05): rerunning the stored SQL reproduces the stored hash.
-    with duckdb.connect(str(config.warehouse), read_only=True) as con:
+    with connect_read_only(config.warehouse) as con:
         cursor = con.execute(receipt["compiled_sql"])
         columns = [d[0] for d in cursor.description]
         rows = [[render(v, c) for v, c in zip(row, columns)] for row in cursor.fetchall()]
@@ -187,13 +163,3 @@ def test_schema_rejection_is_still_traced(config):
 def test_missing_time_range_names_the_options(config):
     result = call(config, {"metric": "net_merchandise_value", "time_grain": "quarter"})
     assert result.is_error and "last_quarter" in result.content[0].text
-
-
-def test_row_cap_truncates_and_records_gr03(config):
-    capped = dataclasses.replace(config, row_cap=3)
-    answer = call(capped, {**LAST_QUARTER, "dimensions": ["dealer_region"]}).structured_content
-    assert answer["truncated"] is True and len(answer["rows"]) == 3
-    assert "first 3 rows" in answer["how_to_report"]
-    [span] = read_jsonl(capped.log_dir / "traces.jsonl")
-    assert span["status"]["code"] == "OK"
-    assert span["attributes"]["kit.guardrail.hits"] == ["GR-03"]

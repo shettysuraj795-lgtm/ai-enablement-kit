@@ -5,8 +5,16 @@ requires-python = ">=3.12"
 dependencies = ["duckdb==2.0.0", "mcp==2.3.0", "pyyaml==6.0.3", "sqlglot==30.27.0"]
 
 [tool.pytest.ini_options]
-pythonpath = ["src", "data"]
+pythonpath = ["src", "data", "tests"]
 testpaths = ["tests"]
 markers = [
     "integration: needs data/warehouse.duckdb built by the generator and dbt",
+    "gr01: GR-01 data access is read-only",
+    "gr02: GR-02 exploratory SQL is limited to an allow-list",
+    "gr03: GR-03 results are capped in rows and time",
+    "gr04: GR-04 personal data is never returned or logged",
+    "gr05: GR-05 every result has a replayable receipt",
+    "gr06: GR-06 every result is labelled certified or exploratory",
+    "gr07: GR-07 every tool call is traced",
+    "gr08: GR-08 certified metric definitions are change-controlled",
 ]

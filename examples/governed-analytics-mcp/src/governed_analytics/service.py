@@ -147,7 +147,7 @@ class QueryService:
             raise QueryError(str(e), "invalid_intent") from e
 
         snapshot = receipts.data_snapshot(self.config.dbt_target)
-        columns, rows, truncated = self._execute(sql)
+        columns, rows, truncated = self.execute(sql)
         classification = "certified" if definition.certified else "exploratory"  # GR-06
         result_hash = receipts.result_hash(columns, rows)
         trace_id, span_id = tracing.current_ids()
@@ -216,9 +216,9 @@ class QueryService:
             "invalid_intent",
         )
 
-    def _execute(self, sql: str) -> tuple[list[str], list[list[str | None]], bool]:
+    def execute(self, sql: str) -> tuple[list[str], list[list[str | None]], bool]:
         cap = self.config.row_cap
-        con = duckdb.connect(str(self.config.warehouse), read_only=True)  # GR-01
+        con = connect_read_only(self.config.warehouse)
         timer = threading.Timer(self.config.timeout_seconds, con.interrupt)  # GR-03
         timer.start()
         try:
@@ -240,6 +240,16 @@ class QueryService:
             tracing.guardrail_hit("GR-03")
         rows = [[receipts.render(v, c) for v, c in zip(row, columns)] for row in fetched[:cap]]
         return columns, rows, truncated
+
+
+def connect_read_only(warehouse: Path) -> duckdb.DuckDBPyConnection:
+    """The only way the server opens the warehouse (GR-01).
+
+    `read_only` blocks writes to the database, but not to files: without
+    `enable_external_access: False`, `COPY ... TO`, `read_csv` and `INSTALL`
+    still work. SQL cannot switch external access back on.
+    """
+    return duckdb.connect(str(warehouse), read_only=True, config={"enable_external_access": False})
 
 
 def _summary(metric: Metric) -> dict[str, Any]:
