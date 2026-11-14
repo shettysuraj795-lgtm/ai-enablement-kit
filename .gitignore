@@ -6,3 +6,4 @@ private/
 **/dbt/.user.yml
 __pycache__/
 .venv/
+examples/governed-analytics-mcp/logs/
