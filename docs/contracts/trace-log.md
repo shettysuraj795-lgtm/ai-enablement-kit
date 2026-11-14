@@ -8,17 +8,24 @@
 
 Each line is one span, shaped like an OpenTelemetry span. Attribute names follow the OpenTelemetry semantic conventions where one exists (`gen_ai.*`, `mcp.*`, `db.*`, `error.type`). Attributes specific to this kit use the `kit.*` namespace. Moving to an OpenTelemetry exporter later only changes where spans are sent, not what they contain.
 
-The GenAI, MCP and database conventions are still marked *development* upstream. The names below are pinned as of this contract version. If the upstream names change, a new contract version renames them; spans already in the log are not rewritten.
+### Pinned conventions
+
+| Conventions | Source | Pinned at |
+|---|---|---|
+| GenAI and MCP (`gen_ai.*`, `mcp.*`, span name) | [open-telemetry/semantic-conventions-genai](https://github.com/open-telemetry/semantic-conventions-genai), MCP server span in `docs/gen-ai/mcp.md` | commit [`e6658f1`](https://github.com/open-telemetry/semantic-conventions-genai/tree/e6658f14c9d9ea0760825f029cb82e7673f48fab) (6 Nov 2026) |
+| Database, error, JSON-RPC, network (`db.*`, `error.type`, `jsonrpc.*`, `network.*`) | [open-telemetry/semantic-conventions](https://github.com/open-telemetry/semantic-conventions) | `v1.45.0`, the version the GenAI commit above builds on |
+
+The GenAI repository has no tagged releases yet, so the pin is a commit. Most of these names are still marked *development* upstream. When the pin moves and a name changes, a new contract version renames it; spans already in the log are not rewritten. `duckdb` is not a registered value of `db.system.name`, which accepts custom values.
 
 ## Span fields
 
 | Field | Type | Meaning |
 |---|---|---|
-| `trace_id` | string, 32 hex | From the client's W3C `traceparent` in the MCP request `_meta` if present; otherwise one trace per MCP session. |
+| `trace_id` | string, 32 hex | From the client's W3C `traceparent` in the MCP request `_meta` if present; otherwise one trace per MCP session (server process, for stdio). |
 | `span_id` | string, 16 hex | Unique per tool call. |
 | `parent_span_id` | string or `null` | Parent from `traceparent`, if any. |
-| `name` | string | `execute_tool <tool name>`, following the GenAI convention. |
-| `kind` | string | Always `SERVER`. |
+| `name` | string | `tools/call {tool}`, for example `tools/call query_metric`: the MCP server span format `{mcp.method.name} {target}` with the tool name as target. |
+| `kind` | string | Always `SERVER`, as the MCP server span convention requires. |
 | `start_time`, `end_time` | string | ISO 8601 UTC with milliseconds. Latency is `end_time - start_time`; it is not stored separately. |
 | `status` | object | `code` is `OK` or `ERROR`; `message` explains an error. A call blocked by a guardrail is an `ERROR`. A truncated result is `OK` with a guardrail hit. |
 | `resource` | object | `service.name` (`governed-analytics-mcp`) and `service.version`. |
@@ -28,14 +35,18 @@ The GenAI, MCP and database conventions are still marked *development* upstream.
 
 | Attribute | Source | Meaning |
 |---|---|---|
-| `gen_ai.operation.name` | OTel GenAI | Always `execute_tool`. |
-| `gen_ai.tool.name` | OTel GenAI | The MCP tool called, for example `query_metric` or `explore_sql`. |
-| `gen_ai.tool.call.arguments` | OTel GenAI | The tool arguments as a JSON string. |
 | `mcp.method.name` | OTel MCP | Always `tools/call`. |
+| `gen_ai.operation.name` | OTel GenAI | Always `execute_tool`, so tool-call spans can be analysed alongside non-MCP tool calls. |
+| `gen_ai.tool.name` | OTel GenAI | The MCP tool called, for example `query_metric` or `explore_sql`. |
+| `gen_ai.tool.call.arguments` | OTel GenAI | The tool arguments as an object, without `question` (see *Question capture*). |
+| `jsonrpc.request.id` | OTel JSON-RPC | The JSON-RPC request ID, as a string. |
+| `mcp.protocol.version` | OTel MCP | MCP protocol version negotiated with the client, for example `2025-06-18`. |
+| `network.transport` | OTel network | `pipe` for stdio, as used from a desktop client. |
 | `db.system.name` | OTel DB | `duckdb`. Absent if no query ran. |
 | `db.query.text` | OTel DB | The SQL executed. Matches the receipt's `compiled_sql`. Absent if no query ran. |
 | `db.response.returned_rows` | OTel DB | Rows returned after the row cap. |
-| `error.type` | OTel | Short error class when `status.code` is `ERROR`, for example `guardrail_blocked` or `timeout`. |
+| `error.type` | OTel | Set only when `status.code` is `ERROR`. `tool_error` when the tool returns a result with `isError: true` (all kit errors do); otherwise the JSON-RPC error code. |
+| `kit.error.reason` | kit | Why a tool error happened: `guardrail_blocked`, `timeout`, `invalid_intent` or `internal`. |
 | `kit.persona` | kit | The role the server was configured for, for example `finance_analyst`. Never a person's name or ID ([GR-04](../../requirements/GR-04-pii-protection.md)). |
 | `kit.receipt.id` | kit | The receipt written for this call, or absent if none. |
 | `kit.result.classification` | kit | `certified` or `exploratory`, or absent if no result. |
@@ -78,7 +89,7 @@ The span for the call that produced the [example receipt](receipt.md#worked-exam
   "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
   "span_id": "00f067aa0ba902b7",
   "parent_span_id": null,
-  "name": "execute_tool query_metric",
+  "name": "tools/call query_metric",
   "kind": "SERVER",
   "start_time": "2026-11-14T10:42:07.105Z",
   "end_time": "2026-11-14T10:42:07.318Z",
@@ -88,10 +99,19 @@ The span for the call that produced the [example receipt](receipt.md#worked-exam
     "service.version": "0.1.0"
   },
   "attributes": {
+    "mcp.method.name": "tools/call",
     "gen_ai.operation.name": "execute_tool",
     "gen_ai.tool.name": "query_metric",
-    "gen_ai.tool.call.arguments": "{\"metric\":\"net_revenue\",\"dimensions\":[],\"filters\":[],\"time_grain\":\"quarter\",\"time_range\":{\"relative\":\"last_quarter\"}}",
-    "mcp.method.name": "tools/call",
+    "gen_ai.tool.call.arguments": {
+      "metric": "net_revenue",
+      "dimensions": [],
+      "filters": [],
+      "time_grain": "quarter",
+      "time_range": { "relative": "last_quarter" }
+    },
+    "jsonrpc.request.id": "7",
+    "mcp.protocol.version": "2025-06-18",
+    "network.transport": "pipe",
     "db.system.name": "duckdb",
     "db.query.text": "SELECT date_trunc('quarter', order_date) AS period, sum(net_amount_eur) AS net_revenue FROM marts.fct_orders WHERE is_paid = TRUE AND order_date >= DATE '2026-07-01' AND order_date < DATE '2026-10-01' GROUP BY period ORDER BY period",
     "db.response.returned_rows": 1,
@@ -107,4 +127,4 @@ The span for the call that produced the [example receipt](receipt.md#worked-exam
 }
 ```
 
-A blocked `explore_sql` call would instead have `status.code: "ERROR"`, `error.type: "guardrail_blocked"`, `kit.guardrail.hits: ["GR-02"]`, and no receipt or `db.*` attributes.
+A blocked `explore_sql` call would instead have the name `tools/call explore_sql`, `status.code: "ERROR"`, `error.type: "tool_error"`, `kit.error.reason: "guardrail_blocked"`, `kit.guardrail.hits: ["GR-02"]`, and no receipt or `db.*` attributes.
