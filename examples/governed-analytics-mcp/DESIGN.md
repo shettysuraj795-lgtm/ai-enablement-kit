@@ -82,14 +82,14 @@ Each requirement has its own test file, `tests/test_grNN_*.py`, tagged so that `
 ## Known limits
 
 - The write lock only works within one process. Run the manual retention command while the server is stopped, or rely on the server's own purge.
-
 - `explore_sql` blocks aggregates over PII too (for example `count(DISTINCT buyer_id)`). A buyer count needs a governed metric.
 - The function blocklist must grow when DuckDB adds file-reading functions. The connection's disabled external access is the backstop.
-
 - The data snapshot comes from the latest `run_results.json`, so `dbt docs generate` changes `dbt_invocation_id` without changing the data. A production version would stamp the snapshot into the warehouse during the build.
 - Receipts and traces are local append-only files for one user over stdio. Shared storage is a hand-off item.
 
 ## Hand-off
+
+The full hand-off pack, produced with [`handoff-pack`](../../skills/community/handoff-pack/SKILL.md), is in [`handoff/`](handoff/): a [runbook for Finance](handoff/runbook-finance.md), an [access spec for IT](handoff/access-spec.md) and a [responsibility table](handoff/responsibilities.md). The summary:
 
 | Item | Team |
 |---|---|
