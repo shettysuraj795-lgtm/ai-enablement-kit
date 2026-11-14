@@ -6,6 +6,8 @@ the compiled SQL, and replay compares it byte for byte (ADR-002).
 
 from __future__ import annotations
 
+import datetime as dt
+
 import pytest
 
 from governed_analytics.compiler import IntentError, compile_intent
@@ -160,6 +162,18 @@ def test_unknown_operator(nmv):
 @pytest.mark.parametrize("value", [[], "DE", None])
 def test_in_needs_a_non_empty_list(nmv, value):
     _error(nmv, filters=[{"column": "dealer_region", "op": "in", "value": value}])
+
+
+def test_timestamp_value_is_rejected(nmv):
+    value = dt.datetime(2026, 7, 1, 12, 0)
+    message = _error(nmv, filters=[{"column": "dealer_region", "op": "=", "value": value}])
+    assert "ISO date" in message
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+def test_non_finite_number_is_rejected(nmv, value):
+    message = _error(nmv, filters=[{"column": "dealer_region", "op": "=", "value": value}])
+    assert "finite" in message
 
 
 def test_empty_time_range(nmv):
