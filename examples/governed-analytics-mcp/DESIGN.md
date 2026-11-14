@@ -71,3 +71,15 @@ The per-requirement `pytest -m grNN` markers come with the guardrail tests. Unti
 | Packaging as an organisation-wide connector; versioned releases | Tool enablement |
 | Trace export to the monitoring stack; LLM-as-judge on golden questions | ML / data science |
 | New metrics and certification decisions | BI |
+
+## Evals
+
+`python -m governed_analytics.evals` runs every golden question through the MCP server in CI, with the as-of date pinned to the golden file's.
+
+| Question kind | Checked without a model (every push) | Needs a model in the loop |
+|---|---|---|
+| `metric` | Rows within tolerance, label, and receipt intent equal to the golden intent | `must_name_metric`: the answer names the metric |
+| `ambiguous` | `list_metrics(term)` offers exactly the golden options, and each option's answer is correct | The assistant lists the options or names its choice |
+| `uncovered` | Nothing | An exploratory answer and an offer to request certification |
+
+Model-in-the-loop checks are reported as `needs-model`, never counted as passes.

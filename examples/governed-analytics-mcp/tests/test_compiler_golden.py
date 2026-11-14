@@ -15,6 +15,7 @@ from golden_answers import GOLDEN, answer_nodes, compute
 
 from governed_analytics.catalogue import load_catalogue
 from governed_analytics.compiler import compile_intent
+from governed_analytics.evals import results_match
 from governed_analytics.intent import Intent
 
 pytestmark = [
@@ -29,21 +30,6 @@ def _cases():
     for question in yaml.safe_load(GOLDEN.read_text())["questions"]:
         for i, node in enumerate(answer_nodes(question)):
             yield pytest.param(node, id=f"{question['id']}-{i}-{node['intent']['metric']}")
-
-
-def results_match(actual: dict, expected: dict, tolerance: float) -> bool:
-    if actual["columns"] != expected["columns"] or len(actual["rows"]) != len(expected["rows"]):
-        return False
-    for got_row, want_row in zip(actual["rows"], expected["rows"]):
-        for got, want in zip(got_row, want_row):
-            if got == want:
-                continue
-            try:
-                if abs(float(got) - float(want)) > tolerance:
-                    return False
-            except (TypeError, ValueError):
-                return False
-    return True
 
 
 @pytest.mark.parametrize("expected", list(_cases()))

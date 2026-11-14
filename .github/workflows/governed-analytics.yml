@@ -41,3 +41,8 @@ jobs:
 
       - name: Tests (compiler, periods, receipts, MCP server end to end)
         run: pytest -q
+
+      - name: Golden evals through the MCP server (tool layer)
+        env:
+          PYTHONPATH: src
+        run: python -m governed_analytics.evals
