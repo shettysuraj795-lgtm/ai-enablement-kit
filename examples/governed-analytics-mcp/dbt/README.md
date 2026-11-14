@@ -18,4 +18,4 @@ cd dbt
 | `models/intermediate/` | `intermediate` | Refunds and commission per order; listing status as date ranges |
 | `models/marts/` | `marts` | `fct_orders`, `fct_listings`, `dim_dealers`: the only models metrics may read |
 
-Every column and test listed in the contract is in `models/marts/_marts.yml`. Two small generic tests (`expression_is_true`, `unique_combination_of_columns`) live in `tests/generic/`, so the project needs no packages. `dbt build` reports one expected warning: the source test showing that `raw.listings` contains duplicate loads.
+Every column and test listed in the contract is in `models/marts/_marts.yml`. Two small generic tests (`expression_is_true`, `unique_combination_of_columns`) live in `tests/generic/`, so the project needs no packages. `tests/assert_fct_orders_reconciles_to_raw.sql` recomputes monthly order totals from the raw tables and FX seed alone and fails if `fct_orders` disagrees. `dbt build` reports one expected warning: the source test showing that `raw.listings` contains duplicate loads.
