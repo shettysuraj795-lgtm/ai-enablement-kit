@@ -1,0 +1,4 @@
+# The MCP server: data layer plus the server's own dependencies.
+-r data/requirements.txt
+mcp==2.3.0
+sqlglot==30.27.0
