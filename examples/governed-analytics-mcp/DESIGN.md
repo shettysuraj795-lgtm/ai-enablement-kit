@@ -104,3 +104,18 @@ Each requirement has its own test file, `tests/test_grNN_*.py`, tagged so that `
 | `uncovered` | Nothing | An exploratory answer and an offer to request certification |
 
 Model-in-the-loop checks are reported as `needs-model`, never counted as passes.
+
+## Trace queries
+
+`python -m governed_analytics.trace_report` loads `traces.jsonl` and `receipts.jsonl` into an in-memory DuckDB and runs the named queries in [`analytics/trace_queries.sql`](analytics/trace_queries.sql). The same file runs in the DuckDB CLI.
+
+| Query | Answers | Used by |
+|---|---|---|
+| `overview` | Volume, certified share of data answers, error rate, p50/p95 latency | Rollout success metrics |
+| `by_tool` | Calls, errors and latency per tool | ML / data science monitoring |
+| `certified_share_by_persona` | How much of each team's numbers come from certified definitions | The headline adoption metric |
+| `errors_by_reason`, `guardrail_hits` | Where people get stuck; which GR controls fire | Tool enablement, `guardrail-review` |
+| `promotion_candidates` | Exploratory queries reused at least `--min-uses` times (default 2), grouped by SQL shape, so different dates count as one question, with who asked and an example question | BI's certification queue |
+| `uncertified_metric_usage` | Governed but uncertified metrics in use | BI: certify the definition or retire it |
+
+Fields are extracted from raw JSON by path, so a new span attribute never breaks the views. Example questions disappear once retention purges `kit.question` (GR-04), but the counts stay.

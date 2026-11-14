@@ -25,7 +25,8 @@ needs_warehouse = pytest.mark.skipif(
 
 
 def make_config(log_dir: Path, **overrides) -> Config:
-    return dataclasses.replace(CONFIG, log_dir=log_dir, persona="finance_analyst", as_of=AS_OF, **overrides)
+    defaults = {"persona": "finance_analyst", "as_of": AS_OF}
+    return dataclasses.replace(CONFIG, log_dir=log_dir, **{**defaults, **overrides})
 
 
 def call(config: Config, arguments: dict, tool: str = "query_metric"):
