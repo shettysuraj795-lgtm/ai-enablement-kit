@@ -19,4 +19,6 @@ python -m venv .venv && .venv/bin/pip install -r requirements.txt
 
 Orders run from late 2024 to 13 Nov 2026, the last complete day before the example's evaluation date of 14 Nov 2026.
 
+After `dbt build`, `.venv/bin/python golden_answers.py` recomputes the expected answers in `../evals/golden_questions.yml` from the marts, and `--check` fails if any are out of date.
+
 The data deliberately contains traps that make naive queries disagree: late refunds, four currencies with daily rates, and duplicate listing loads. See [ADR-004](../../../docs/adr/004-synthetic-data-and-traps.md).
