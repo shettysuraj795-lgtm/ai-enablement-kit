@@ -1,6 +1,6 @@
 # Design note: governed-analytics MCP server
 
-The design note that [`mcp-tool-design`](../../skills/community/mcp-tool-design/SKILL.md) asks for. Each choice below names the skill step that shaped it.
+The design note that [`mcp-tool-design`](../../skills/certified/mcp-tool-design/SKILL.md) asks for. Each choice below names the skill step that shaped it.
 
 ## Tools
 
