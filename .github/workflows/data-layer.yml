@@ -1,0 +1,38 @@
+name: data layer
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: examples/governed-analytics-mcp
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: examples/governed-analytics-mcp/data/requirements.txt
+
+      - name: Install
+        run: pip install -r data/requirements.txt
+
+      - name: Generate synthetic data
+        working-directory: examples/governed-analytics-mcp/data
+        run: python generate.py
+
+      - name: dbt build (seeds, models, tests)
+        working-directory: examples/governed-analytics-mcp/dbt
+        run: dbt build
+
+      - name: Golden answers are up to date
+        working-directory: examples/governed-analytics-mcp/data
+        run: python golden_answers.py --check
