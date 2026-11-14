@@ -13,7 +13,8 @@ This catalogue fixes which metrics exist and what the marts must provide for the
 | `gross_merchandise_value` | How much was sold? | ✓ | ✓ | `fct_orders` | yes |
 | `net_merchandise_value` | How much was sold, after refunds? | ✓ | | `fct_orders` | yes |
 | `refund_rate` | What share of sales was refunded? | ✓ | | `fct_orders` | yes |
-| `take_rate` | What share of sales did the marketplace keep as commission? | ✓ | | `fct_orders` | yes |
+| `commission_revenue` | How much commission did the marketplace earn, after refunds? | ✓ | | `fct_orders` | yes |
+| `take_rate` | What share of sales did the marketplace charge as commission? | ✓ | | `fct_orders` | yes |
 | `paid_orders` | How many orders were paid? | | ✓ | `fct_orders` | yes |
 | `active_listings` | How many listings were live? | | ✓ | `fct_listings` | no |
 
@@ -84,8 +85,8 @@ certified: true
 name: take_rate
 description: >-
   Commission charged to dealers as a share of gross merchandise value, for
-  paid orders. Commission is taken at payment; reversals of commission on
-  refunded orders are not modelled in v0.
+  paid orders, before any commission is refunded. For commission earned after
+  refunds, use commission_revenue.
 model: fct_orders
 expression: sum(commission_eur) / nullif(sum(gross_amount_eur), 0)
 time_dimension: order_date
@@ -94,6 +95,27 @@ allowed_dimensions: [dealer_region, dealer_tier, listing_category]
 filters:
   - {column: is_paid, op: "=", value: true}
 unit: ratio
+version: 1.0.0
+owner: bi-finance
+certified: true
+```
+
+```yaml
+name: commission_revenue
+description: >-
+  Commission charged to dealers on paid orders, minus commission refunded to
+  dealers when orders are refunded, in EUR. This is the marketplace's own
+  revenue. Refunded commission is attributed to the original order's date, so
+  a past period's figure can fall as late refunds arrive. Non-EUR orders are
+  converted at the reference rate on the order date.
+model: fct_orders
+expression: sum(net_commission_eur)
+time_dimension: order_date
+time_grains: [day, week, month, quarter, year]
+allowed_dimensions: [dealer_region, dealer_tier, listing_category, order_currency]
+filters:
+  - {column: is_paid, op: "=", value: true}
+unit: EUR
 version: 1.0.0
 owner: bi-finance
 certified: true
@@ -161,9 +183,11 @@ Both marts live in the `marts` schema. Dealer columns are denormalised from `dim
 | `gross_amount_eur` | decimal(18,2) | `round(original_amount * fx_rate, 2)` | expression test |
 | `refund_amount_eur` | decimal(18,2) | All refunds on the order, converted at the same `fx_rate`; 0 if none | between 0 and `gross_amount_eur` |
 | `net_amount_eur` | decimal(18,2) | `gross_amount_eur - refund_amount_eur` | expression test |
-| `commission_eur` | decimal(18,2) | Commission charged to the dealer | between 0 and `gross_amount_eur` |
+| `commission_eur` | decimal(18,2) | Commission charged to the dealer, converted at `fx_rate` | between 0 and `gross_amount_eur` |
+| `commission_refunded_eur` | decimal(18,2) | Commission returned to the dealer on refunds, converted at the same `fx_rate`; 0 if none | between 0 and `commission_eur` |
+| `net_commission_eur` | decimal(18,2) | `commission_eur - commission_refunded_eur` | expression test |
 
-Refunds are converted at the order's rate, not the refund date's rate, so `net_amount_eur` never moves with exchange rates after the order. The raw data deliberately includes refunds in a different month from their order, and rates that move between `order_date` and `paid_at`, so both choices are visible in the numbers.
+Refunds and refunded commission are converted at the order's rate, not the refund date's rate, so `net_amount_eur` and `net_commission_eur` never move with exchange rates after the order ([ADR-001](../adr/001-metric-catalogue.md)). The raw data deliberately includes refunds in a different month from their order, and rates that move between `order_date` and `paid_at`, so both choices are visible in the numbers.
 
 ### `fct_listings`: one row per listing per day
 
