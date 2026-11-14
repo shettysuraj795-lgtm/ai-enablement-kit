@@ -43,6 +43,13 @@ The GenAI, MCP and database conventions are still marked *development* upstream.
 | `kit.metric.version` | kit | Metric version used, for `query_metric` calls. |
 | `kit.result.truncated` | kit | `true` if the row cap cut the result ([GR-03](../../requirements/GR-03-result-caps.md)). |
 | `kit.guardrail.hits` | kit | Requirement IDs that fired on this call, for example `["GR-02"]`. Empty if none. |
+| `kit.question` | kit | The optional `question` tool argument (see *Question capture*). Absent if not given or already deleted under retention. |
+
+### Question capture
+
+Every data tool accepts an optional `question` argument: the user's question in the assistant's words. It is not guaranteed to be verbatim. It is used to find unmet demand, to draft golden eval questions and to explain promotion candidates, and it has no effect on the result.
+
+The server removes `question` from the arguments before writing `gen_ai.tool.call.arguments` and stores it only in `kit.question`. It is never written to a receipt. Because it is free text and may contain personal data, it is deleted after the retention period set in [GR-04](../../requirements/GR-04-pii-protection.md); the rest of the span is kept.
 
 ## Querying the log
 
@@ -94,7 +101,8 @@ The span for the call that produced the [example receipt](receipt.md#worked-exam
     "kit.metric.name": "net_revenue",
     "kit.metric.version": "1.0.0",
     "kit.result.truncated": false,
-    "kit.guardrail.hits": []
+    "kit.guardrail.hits": [],
+    "kit.question": "What was our revenue last quarter?"
   }
 }
 ```

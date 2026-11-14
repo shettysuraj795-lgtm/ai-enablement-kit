@@ -26,7 +26,7 @@ A receipt records everything needed to explain a number and reproduce it: what w
 | `result` | object | `columns` (names in order), `row_count`, `truncated` (boolean, [GR-03](../../requirements/GR-03-result-caps.md)) and `hash` (see *Result hash*). |
 | `trace_id`, `span_id` | string | Link to the span in the [trace log](trace-log.md) for this call. |
 
-The user's natural-language question is deliberately not stored. It can contain personal data ([GR-04](../../requirements/GR-04-pii-protection.md)), and the structured intent is what determines the number.
+The user's natural-language question is never stored in a receipt. Receipts are kept long-term and shared with reviewers, a question can contain personal data, and the structured intent is what determines the number. If the assistant passes the optional `question` argument, it goes to the trace log only, under the retention rule in [GR-04](../../requirements/GR-04-pii-protection.md). See [question capture](trace-log.md#question-capture).
 
 ### Intent
 

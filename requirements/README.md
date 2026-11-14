@@ -9,7 +9,7 @@ Each requirement has an ID, the rule, a rationale, an owner and a way to verify 
 | [GR-01](GR-01-read-only-access.md) | Data access is read-only | IT |
 | [GR-02](GR-02-query-allow-list.md) | Exploratory SQL is limited to an allow-list | BI |
 | [GR-03](GR-03-result-caps.md) | Results are capped in rows and time | Tool enablement |
-| [GR-04](GR-04-pii-protection.md) | Personal data is never returned or logged | IT (security) |
+| [GR-04](GR-04-pii-protection.md) | Personal data is never returned or logged; question text is kept briefly | IT (security) |
 | [GR-05](GR-05-receipts.md) | Every result has a replayable receipt | BI |
 | [GR-06](GR-06-certified-vs-exploratory.md) | Every result is labelled certified or exploratory | BI |
 | [GR-07](GR-07-tracing.md) | Every tool call is traced | ML / data science |
