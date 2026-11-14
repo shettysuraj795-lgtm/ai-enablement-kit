@@ -1,2 +1,8 @@
 private/
 .DS_Store
+*.duckdb
+**/dbt/target/
+**/dbt/logs/
+**/dbt/.user.yml
+__pycache__/
+.venv/
