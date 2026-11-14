@@ -122,7 +122,7 @@ The span for the call that produced the [example receipt](receipt.md#worked-exam
     "kit.metric.version": "1.0.0",
     "kit.result.truncated": false,
     "kit.guardrail.hits": [],
-    "kit.question": "What was our revenue last quarter?"
+    "kit.question": "What was our revenue after refunds last quarter?"
   }
 }
 ```
