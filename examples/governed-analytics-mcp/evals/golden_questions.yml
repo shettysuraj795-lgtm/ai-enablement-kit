@@ -1,0 +1,439 @@
+# Golden eval questions for the governed analytics example (draft format 0.1).
+#
+# Generated results: edit questions, intents and reference_sql by hand, then
+# run `python data/golden_answers.py` to recompute every `result` from the
+# dbt marts. `--check` fails if a stored result no longer matches the data.
+#
+# kind:
+#   metric     one governed metric answers it. Passes if the tool call's intent
+#              and result match `expected` and the label is `classification`.
+#              With `must_name_metric`, the answer must also say which metric
+#              it used (the question contains an ambiguous `term`).
+#   ambiguous  the question uses a glossary `term` that it does not settle.
+#              Passes if the answer lists the `options` and asks the user to
+#              choose, or names the option it chose and returns that option's
+#              result.
+#   uncovered  no metric answers it. Passes if the result is labelled
+#              `exploratory` and the answer offers to request certification.
+#
+# intent follows the receipt contract (docs/contracts/receipt.md); the
+# `relative` names are drafts until the compiler fixes its vocabulary.
+# result.rows are rendered like the receipt's canonical result: decimals at
+# their scale, dates in ISO 8601, ratios to 6 places, and `period` as the ISO
+# date the period starts on. Rows are ordered by
+# period, then dimensions. Compare numbers within `tolerance` (absolute).
+
+format_version: '0.1'
+as_of: '2026-11-14'
+data: {generator_seed: 20261114, snapshot_end_date: '2026-11-13'}
+questions:
+- id: GQ-01
+  persona: finance_analyst
+  question: What was gross merchandise value last quarter?
+  kind: metric
+  expected:
+    classification: certified
+    intent:
+      metric: gross_merchandise_value
+      dimensions: []
+      filters: []
+      time_grain: quarter
+      time_range: {start: '2026-07-01', end: '2026-10-01', as_of: '2026-11-14', relative: last_quarter}
+    reference_sql: |-
+      SELECT date_trunc('quarter', order_date) AS period, sum(gross_amount_eur) AS gross_merchandise_value
+      FROM marts.fct_orders
+      WHERE is_paid = TRUE AND order_date >= DATE '2026-07-01' AND order_date < DATE '2026-10-01'
+      GROUP BY period ORDER BY period
+    tolerance: 0
+    result:
+      columns: [period, gross_merchandise_value]
+      rows:
+      - ['2026-07-01', '9356569.82']
+- id: GQ-02
+  persona: finance_analyst
+  question: What was net merchandise value last quarter?
+  kind: metric
+  expected:
+    classification: certified
+    intent:
+      metric: net_merchandise_value
+      dimensions: []
+      filters: []
+      time_grain: quarter
+      time_range: {start: '2026-07-01', end: '2026-10-01', as_of: '2026-11-14', relative: last_quarter}
+    reference_sql: |-
+      SELECT date_trunc('quarter', order_date) AS period, sum(net_amount_eur) AS net_merchandise_value
+      FROM marts.fct_orders
+      WHERE is_paid = TRUE AND order_date >= DATE '2026-07-01' AND order_date < DATE '2026-10-01'
+      GROUP BY period ORDER BY period
+    tolerance: 0
+    result:
+      columns: [period, net_merchandise_value]
+      rows:
+      - ['2026-07-01', '8743316.38']
+- id: GQ-03
+  persona: finance_analyst
+  question: What was revenue last quarter?
+  kind: ambiguous
+  term: revenue
+  expected:
+    pass_if: lists_options_or_names_choice
+    options:
+    - classification: certified
+      intent:
+        metric: gross_merchandise_value
+        dimensions: []
+        filters: []
+        time_grain: quarter
+        time_range: {start: '2026-07-01', end: '2026-10-01', as_of: '2026-11-14', relative: last_quarter}
+      reference_sql: |-
+        SELECT date_trunc('quarter', order_date) AS period, sum(gross_amount_eur) AS gross_merchandise_value
+        FROM marts.fct_orders
+        WHERE is_paid = TRUE AND order_date >= DATE '2026-07-01' AND order_date < DATE '2026-10-01'
+        GROUP BY period ORDER BY period
+      tolerance: 0
+      result:
+        columns: [period, gross_merchandise_value]
+        rows:
+        - ['2026-07-01', '9356569.82']
+    - classification: certified
+      intent:
+        metric: net_merchandise_value
+        dimensions: []
+        filters: []
+        time_grain: quarter
+        time_range: {start: '2026-07-01', end: '2026-10-01', as_of: '2026-11-14', relative: last_quarter}
+      reference_sql: |-
+        SELECT date_trunc('quarter', order_date) AS period, sum(net_amount_eur) AS net_merchandise_value
+        FROM marts.fct_orders
+        WHERE is_paid = TRUE AND order_date >= DATE '2026-07-01' AND order_date < DATE '2026-10-01'
+        GROUP BY period ORDER BY period
+      tolerance: 0
+      result:
+        columns: [period, net_merchandise_value]
+        rows:
+        - ['2026-07-01', '8743316.38']
+    - classification: certified
+      intent:
+        metric: commission_revenue
+        dimensions: []
+        filters: []
+        time_grain: quarter
+        time_range: {start: '2026-07-01', end: '2026-10-01', as_of: '2026-11-14', relative: last_quarter}
+      reference_sql: |-
+        SELECT date_trunc('quarter', order_date) AS period, sum(net_commission_eur) AS commission_revenue
+        FROM marts.fct_orders
+        WHERE is_paid = TRUE AND order_date >= DATE '2026-07-01' AND order_date < DATE '2026-10-01'
+        GROUP BY period ORDER BY period
+      tolerance: 0
+      result:
+        columns: [period, commission_revenue]
+        rows:
+        - ['2026-07-01', '436367.44']
+- id: GQ-04
+  persona: finance_analyst
+  question: What was our revenue after refunds last quarter?
+  kind: metric
+  term: revenue
+  expected:
+    must_name_metric: true
+    classification: certified
+    intent:
+      metric: net_merchandise_value
+      dimensions: []
+      filters: []
+      time_grain: quarter
+      time_range: {start: '2026-07-01', end: '2026-10-01', as_of: '2026-11-14', relative: last_quarter}
+    reference_sql: |-
+      SELECT date_trunc('quarter', order_date) AS period, sum(net_amount_eur) AS net_merchandise_value
+      FROM marts.fct_orders
+      WHERE is_paid = TRUE AND order_date >= DATE '2026-07-01' AND order_date < DATE '2026-10-01'
+      GROUP BY period ORDER BY period
+    tolerance: 0
+    result:
+      columns: [period, net_merchandise_value]
+      rows:
+      - ['2026-07-01', '8743316.38']
+- id: GQ-05
+  persona: finance_analyst
+  question: How much commission did we earn last quarter, after refunds?
+  kind: metric
+  expected:
+    classification: certified
+    intent:
+      metric: commission_revenue
+      dimensions: []
+      filters: []
+      time_grain: quarter
+      time_range: {start: '2026-07-01', end: '2026-10-01', as_of: '2026-11-14', relative: last_quarter}
+    reference_sql: |-
+      SELECT date_trunc('quarter', order_date) AS period, sum(net_commission_eur) AS commission_revenue
+      FROM marts.fct_orders
+      WHERE is_paid = TRUE AND order_date >= DATE '2026-07-01' AND order_date < DATE '2026-10-01'
+      GROUP BY period ORDER BY period
+    tolerance: 0
+    result:
+      columns: [period, commission_revenue]
+      rows:
+      - ['2026-07-01', '436367.44']
+- id: GQ-06
+  persona: finance_analyst
+  question: What was the take rate by dealer tier last quarter?
+  kind: metric
+  expected:
+    classification: certified
+    intent:
+      metric: take_rate
+      dimensions: [dealer_tier]
+      filters: []
+      time_grain: quarter
+      time_range: {start: '2026-07-01', end: '2026-10-01', as_of: '2026-11-14', relative: last_quarter}
+    reference_sql: |-
+      SELECT date_trunc('quarter', order_date) AS period, dealer_tier,
+             sum(commission_eur) / nullif(sum(gross_amount_eur), 0) AS take_rate
+      FROM marts.fct_orders
+      WHERE is_paid = TRUE AND order_date >= DATE '2026-07-01' AND order_date < DATE '2026-10-01'
+      GROUP BY period, dealer_tier ORDER BY period, dealer_tier
+    tolerance: 1.0e-06
+    result:
+      columns: [period, dealer_tier, take_rate]
+      rows:
+      - ['2026-07-01', platinum, '0.041622']
+      - ['2026-07-01', premium, '0.050233']
+      - ['2026-07-01', standard, '0.058679']
+- id: GQ-07
+  persona: finance_analyst
+  question: What was the refund rate in each month of last quarter?
+  kind: metric
+  expected:
+    classification: certified
+    intent:
+      metric: refund_rate
+      dimensions: []
+      filters: []
+      time_grain: month
+      time_range: {start: '2026-07-01', end: '2026-10-01', as_of: '2026-11-14', relative: last_quarter}
+    reference_sql: |-
+      SELECT date_trunc('month', order_date) AS period,
+             sum(refund_amount_eur) / nullif(sum(gross_amount_eur), 0) AS refund_rate
+      FROM marts.fct_orders
+      WHERE is_paid = TRUE AND order_date >= DATE '2026-07-01' AND order_date < DATE '2026-10-01'
+      GROUP BY period ORDER BY period
+    tolerance: 1.0e-06
+    result:
+      columns: [period, refund_rate]
+      rows:
+      - ['2026-07-01', '0.093304']
+      - ['2026-08-01', '0.055933']
+      - ['2026-09-01', '0.049984']
+- id: GQ-08
+  persona: finance_analyst
+  question: What was gross merchandise value by currency last month?
+  kind: metric
+  expected:
+    classification: certified
+    intent:
+      metric: gross_merchandise_value
+      dimensions: [order_currency]
+      filters: []
+      time_grain: month
+      time_range: {start: '2026-10-01', end: '2026-11-01', as_of: '2026-11-14', relative: last_month}
+    reference_sql: |-
+      SELECT date_trunc('month', order_date) AS period, order_currency, sum(gross_amount_eur) AS gross_merchandise_value
+      FROM marts.fct_orders
+      WHERE is_paid = TRUE AND order_date >= DATE '2026-10-01' AND order_date < DATE '2026-11-01'
+      GROUP BY period, order_currency ORDER BY period, order_currency
+    tolerance: 0
+    result:
+      columns: [period, order_currency, gross_merchandise_value]
+      rows:
+      - ['2026-10-01', CHF, '280176.21']
+      - ['2026-10-01', EUR, '1807088.00']
+      - ['2026-10-01', GBP, '201515.88']
+      - ['2026-10-01', USD, '804110.70']
+- id: GQ-09
+  persona: finance_analyst
+  question: What is net merchandise value by listing category so far this year?
+  kind: metric
+  expected:
+    classification: certified
+    intent:
+      metric: net_merchandise_value
+      dimensions: [listing_category]
+      filters: []
+      time_grain: year
+      time_range: {start: '2026-01-01', end: '2026-11-14', as_of: '2026-11-14', relative: year_to_date}
+    reference_sql: |-
+      SELECT date_trunc('year', order_date) AS period, listing_category, sum(net_amount_eur) AS net_merchandise_value
+      FROM marts.fct_orders
+      WHERE is_paid = TRUE AND order_date >= DATE '2026-01-01' AND order_date < DATE '2026-11-14'
+      GROUP BY period, listing_category ORDER BY period, listing_category
+    tolerance: 0
+    result:
+      columns: [period, listing_category, net_merchandise_value]
+      rows:
+      - ['2026-01-01', chronograph, '1475151.98']
+      - ['2026-01-01', diver, '4321561.35']
+      - ['2026-01-01', dress, '10452028.64']
+      - ['2026-01-01', pilot, '8134605.12']
+      - ['2026-01-01', sports, '5697336.10']
+- id: GQ-10
+  persona: sales_ops_lead
+  question: What were sales last month?
+  kind: ambiguous
+  term: sales
+  expected:
+    pass_if: lists_options_or_names_choice
+    options:
+    - classification: certified
+      intent:
+        metric: gross_merchandise_value
+        dimensions: []
+        filters: []
+        time_grain: month
+        time_range: {start: '2026-10-01', end: '2026-11-01', as_of: '2026-11-14', relative: last_month}
+      reference_sql: |-
+        SELECT date_trunc('month', order_date) AS period, sum(gross_amount_eur) AS gross_merchandise_value
+        FROM marts.fct_orders
+        WHERE is_paid = TRUE AND order_date >= DATE '2026-10-01' AND order_date < DATE '2026-11-01'
+        GROUP BY period ORDER BY period
+      tolerance: 0
+      result:
+        columns: [period, gross_merchandise_value]
+        rows:
+        - ['2026-10-01', '3092890.79']
+    - classification: certified
+      intent:
+        metric: paid_orders
+        dimensions: []
+        filters: []
+        time_grain: month
+        time_range: {start: '2026-10-01', end: '2026-11-01', as_of: '2026-11-14', relative: last_month}
+      reference_sql: |-
+        SELECT date_trunc('month', order_date) AS period, count(order_id) AS paid_orders
+        FROM marts.fct_orders
+        WHERE is_paid = TRUE AND order_date >= DATE '2026-10-01' AND order_date < DATE '2026-11-01'
+        GROUP BY period ORDER BY period
+      tolerance: 0
+      result:
+        columns: [period, paid_orders]
+        rows:
+        - ['2026-10-01', '489']
+- id: GQ-11
+  persona: sales_ops_lead
+  question: How many paid orders did each dealer region have last quarter?
+  kind: metric
+  expected:
+    classification: certified
+    intent:
+      metric: paid_orders
+      dimensions: [dealer_region]
+      filters: []
+      time_grain: quarter
+      time_range: {start: '2026-07-01', end: '2026-10-01', as_of: '2026-11-14', relative: last_quarter}
+    reference_sql: |-
+      SELECT date_trunc('quarter', order_date) AS period, dealer_region, count(order_id) AS paid_orders
+      FROM marts.fct_orders
+      WHERE is_paid = TRUE AND order_date >= DATE '2026-07-01' AND order_date < DATE '2026-10-01'
+      GROUP BY period, dealer_region ORDER BY period, dealer_region
+    tolerance: 0
+    result:
+      columns: [period, dealer_region, paid_orders]
+      rows:
+      - ['2026-07-01', AT, '71']
+      - ['2026-07-01', CH, '102']
+      - ['2026-07-01', DE, '261']
+      - ['2026-07-01', ES, '73']
+      - ['2026-07-01', FR, '133']
+      - ['2026-07-01', GB, '83']
+      - ['2026-07-01', HK, '49']
+      - ['2026-07-01', IT, '159']
+      - ['2026-07-01', JP, '90']
+      - ['2026-07-01', NL, '89']
+      - ['2026-07-01', US, '241']
+- id: GQ-12
+  persona: sales_ops_lead
+  question: What was gross merchandise value from German dealers last quarter?
+  kind: metric
+  expected:
+    classification: certified
+    intent:
+      metric: gross_merchandise_value
+      dimensions: []
+      filters:
+      - {column: dealer_region, op: '=', value: DE}
+      time_grain: quarter
+      time_range: {start: '2026-07-01', end: '2026-10-01', as_of: '2026-11-14', relative: last_quarter}
+    reference_sql: |-
+      SELECT date_trunc('quarter', order_date) AS period, sum(gross_amount_eur) AS gross_merchandise_value
+      FROM marts.fct_orders
+      WHERE is_paid = TRUE AND dealer_region = 'DE'
+        AND order_date >= DATE '2026-07-01' AND order_date < DATE '2026-10-01'
+      GROUP BY period ORDER BY period
+    tolerance: 0
+    result:
+      columns: [period, gross_merchandise_value]
+      rows:
+      - ['2026-07-01', '1932263.00']
+- id: GQ-13
+  persona: sales_ops_lead
+  question: How many paid orders were there in each of the last four complete weeks?
+  kind: metric
+  expected:
+    classification: certified
+    intent:
+      metric: paid_orders
+      dimensions: []
+      filters: []
+      time_grain: week
+      time_range: {start: '2026-10-12', end: '2026-11-09', as_of: '2026-11-14', relative: last_4_weeks}
+    reference_sql: |-
+      SELECT date_trunc('week', order_date) AS period, count(order_id) AS paid_orders
+      FROM marts.fct_orders
+      WHERE is_paid = TRUE AND order_date >= DATE '2026-10-12' AND order_date < DATE '2026-11-09'
+      GROUP BY period ORDER BY period
+    tolerance: 0
+    result:
+      columns: [period, paid_orders]
+      rows:
+      - ['2026-10-12', '115']
+      - ['2026-10-19', '114']
+      - ['2026-10-26', '108']
+      - ['2026-11-02', '110']
+- id: GQ-14
+  persona: sales_ops_lead
+  question: How many listings were active last month, by dealer region?
+  kind: metric
+  expected:
+    classification: exploratory
+    intent:
+      metric: active_listings
+      dimensions: [dealer_region]
+      filters: []
+      time_grain: month
+      time_range: {start: '2026-10-01', end: '2026-11-01', as_of: '2026-11-14', relative: last_month}
+    reference_sql: |-
+      SELECT date_trunc('month', snapshot_date) AS period, dealer_region, count(DISTINCT listing_id) AS active_listings
+      FROM marts.fct_listings
+      WHERE is_active = TRUE AND snapshot_date >= DATE '2026-10-01' AND snapshot_date < DATE '2026-11-01'
+      GROUP BY period, dealer_region ORDER BY period, dealer_region
+    tolerance: 0
+    result:
+      columns: [period, dealer_region, active_listings]
+      rows:
+      - ['2026-10-01', AT, '267']
+      - ['2026-10-01', CH, '352']
+      - ['2026-10-01', DE, '925']
+      - ['2026-10-01', ES, '283']
+      - ['2026-10-01', FR, '504']
+      - ['2026-10-01', GB, '308']
+      - ['2026-10-01', HK, '145']
+      - ['2026-10-01', IT, '512']
+      - ['2026-10-01', JP, '256']
+      - ['2026-10-01', NL, '352']
+      - ['2026-10-01', US, '822']
+- id: GQ-15
+  persona: sales_ops_lead
+  question: How many days does a listing take to sell, on average?
+  kind: uncovered
+  expected: {classification: exploratory, offers_certification_request: true}

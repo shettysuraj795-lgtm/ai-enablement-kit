@@ -1,0 +1,6 @@
+# One environment for the data layer: the generator and dbt share the DuckDB
+# version, so the warehouse file format matches. Tested with Python 3.12.
+duckdb==2.0.0
+dbt-core==1.12.7
+dbt-duckdb==1.11.1
+pyyaml==6.0.3

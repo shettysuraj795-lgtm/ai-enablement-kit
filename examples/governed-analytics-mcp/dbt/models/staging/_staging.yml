@@ -1,0 +1,38 @@
+version: 2
+
+models:
+  - name: stg_listings
+    description: One row per listing; duplicate loads removed.
+    columns:
+      - name: listing_id
+        data_tests: [unique, not_null]
+  - name: stg_orders
+    columns:
+      - name: order_id
+        data_tests: [unique, not_null]
+      - name: buyer_id
+        config:
+          meta: {pii: true}
+      - name: payment_status
+        data_tests:
+          - accepted_values:
+              arguments: {values: [paid, failed, pending]}
+  - name: stg_listing_status_changes
+    data_tests:
+      - unique_combination_of_columns:
+          arguments: {combination_of_columns: [listing_id, changed_on]}
+    columns:
+      - name: status
+        data_tests:
+          - accepted_values:
+              arguments: {values: [active, paused, sold, withdrawn]}
+  - name: stg_commissions
+    columns:
+      - name: entry_type
+        data_tests:
+          - accepted_values:
+              arguments: {values: [charge, refund]}
+  - name: stg_fx_rates
+    data_tests:
+      - unique_combination_of_columns:
+          arguments: {combination_of_columns: [rate_date, currency]}

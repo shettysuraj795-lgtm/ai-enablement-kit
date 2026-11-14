@@ -1,0 +1,30 @@
+name: governed_analytics
+version: "0.1.0"
+config-version: 2
+profile: governed_analytics
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+test-paths: ["tests"]
+analysis-paths: ["analyses"]
+macro-paths: ["macros"]
+
+vars:
+  # Last complete day in the raw data. Listing snapshots run up to this date.
+  snapshot_end_date: "2026-11-13"
+
+models:
+  governed_analytics:
+    staging:
+      +schema: staging
+      +materialized: view
+    intermediate:
+      +schema: intermediate
+      +materialized: view
+    marts:
+      +schema: marts
+      +materialized: table
+
+seeds:
+  governed_analytics:
+    +schema: seeds

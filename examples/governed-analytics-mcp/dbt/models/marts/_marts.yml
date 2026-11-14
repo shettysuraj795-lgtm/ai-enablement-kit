@@ -1,0 +1,168 @@
+version: 2
+
+# Columns and tests follow docs/contracts/metric-catalogue-v0.md. Dealer
+# columns are denormalised from dim_dealers so that no metric needs a join.
+
+x-dealer-regions: &dealer_regions [DE, IT, FR, NL, AT, ES, CH, GB, US, JP, HK]
+x-dealer-tiers: &dealer_tiers [standard, premium, platinum]
+x-listing-categories: &listing_categories [dress, diver, chronograph, pilot, sports]
+
+models:
+  - name: dim_dealers
+    description: One row per dealer. Dealers are businesses, so `dealer_id` is not personal data.
+    columns:
+      - name: dealer_id
+        data_tests: [unique, not_null]
+      - name: dealer_region
+        description: Country code of the dealer.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments: {values: *dealer_regions}
+      - name: dealer_tier
+        description: Dealer's subscription tier.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments: {values: *dealer_tiers}
+
+  - name: fct_orders
+    description: >-
+      One row per order, paid or not. Amounts in EUR use the reference rate on
+      the order date, for refunds and refunded commission too.
+    columns:
+      - name: order_id
+        description: Primary key.
+        data_tests: [unique, not_null]
+      - name: order_date
+        description: Date the order was placed. The time dimension for every order metric.
+        data_tests: [not_null]
+      - name: paid_at
+        description: >-
+          When payment cleared; null if unpaid. No metric uses it. It is the
+          alternative date that makes revenue ambiguous.
+      - name: is_paid
+        description: Payment cleared.
+        data_tests: [not_null]
+      - name: buyer_id
+        description: Buyer. Personal data (GR-04).
+        config:
+          meta: {pii: true}
+        data_tests: [not_null]
+      - name: dealer_id
+        description: Selling dealer.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments: {to: ref('dim_dealers'), field: dealer_id}
+      - name: dealer_region
+        description: Dealer's region.
+        data_tests:
+          - accepted_values:
+              arguments: {values: *dealer_regions}
+      - name: dealer_tier
+        description: Dealer's subscription tier.
+        data_tests:
+          - accepted_values:
+              arguments: {values: *dealer_tiers}
+      - name: listing_id
+        description: Listing the order came from.
+        data_tests:
+          - relationships:
+              arguments: {to: ref('fct_listings'), field: listing_id}
+      - name: listing_category
+        description: Category of the listed item.
+        data_tests:
+          - accepted_values:
+              arguments: {values: *listing_categories}
+      - name: order_currency
+        description: Currency the buyer paid in.
+        data_tests:
+          - accepted_values:
+              arguments: {values: [EUR, USD, GBP, CHF]}
+      - name: original_amount
+        description: Order value in `order_currency`.
+        data_tests:
+          - not_null
+          - expression_is_true:
+              arguments: {expression: ">= 0"}
+      - name: fx_rate
+        description: EUR per unit of `order_currency`, from the FX seed.
+        data_tests:
+          - not_null
+          - expression_is_true:
+              arguments: {expression: "= 1"}
+              config:
+                where: "order_currency = 'EUR'"
+      - name: fx_rate_date
+        description: Date of the rate used.
+        data_tests:
+          - expression_is_true:
+              arguments: {expression: "= order_date"}
+      - name: gross_amount_eur
+        description: "`round(original_amount * fx_rate, 2)`"
+        data_tests:
+          - expression_is_true:
+              arguments: {expression: "= round(original_amount * fx_rate, 2)"}
+      - name: refund_amount_eur
+        description: All refunds on the order, converted at the same `fx_rate`; 0 if none.
+        data_tests:
+          - expression_is_true:
+              arguments: {expression: "between 0 and gross_amount_eur"}
+      - name: net_amount_eur
+        description: "`gross_amount_eur - refund_amount_eur`"
+        data_tests:
+          - expression_is_true:
+              arguments: {expression: "= gross_amount_eur - refund_amount_eur"}
+      - name: commission_eur
+        description: Commission charged to the dealer, converted at `fx_rate`.
+        data_tests:
+          - expression_is_true:
+              arguments: {expression: "between 0 and gross_amount_eur"}
+      - name: commission_refunded_eur
+        description: >-
+          Commission returned to the dealer on refunds, converted at the same
+          `fx_rate`; 0 if none.
+        data_tests:
+          - expression_is_true:
+              arguments: {expression: "between 0 and commission_eur"}
+      - name: net_commission_eur
+        description: "`commission_eur - commission_refunded_eur`"
+        data_tests:
+          - expression_is_true:
+              arguments: {expression: "= commission_eur - commission_refunded_eur"}
+
+  - name: fct_listings
+    description: One row per listing per day, from creation until sold, withdrawn or the snapshot end date.
+    data_tests:
+      - unique_combination_of_columns:
+          arguments: {combination_of_columns: [listing_id, snapshot_date]}
+    columns:
+      - name: listing_id
+        data_tests: [not_null]
+      - name: snapshot_date
+        description: Day the row describes.
+        data_tests: [not_null]
+      - name: is_active
+        description: Listing was live and purchasable on that day.
+        data_tests: [not_null]
+      - name: dealer_id
+        description: Listing dealer.
+        data_tests:
+          - relationships:
+              arguments: {to: ref('dim_dealers'), field: dealer_id}
+      - name: dealer_region
+        description: Dealer's region.
+        data_tests:
+          - accepted_values:
+              arguments: {values: *dealer_regions}
+      - name: dealer_tier
+        description: Dealer's subscription tier.
+        data_tests:
+          - accepted_values:
+              arguments: {values: *dealer_tiers}
+      - name: listing_category
+        description: Category of the listed item.
+        data_tests:
+          - accepted_values:
+              arguments: {values: *listing_categories}
