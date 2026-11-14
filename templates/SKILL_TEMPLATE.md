@@ -49,7 +49,9 @@ control in requirements/. If no guardrail applies, write "None".
 ## Evals
 
 <!--
-Where the eval cases live (evals/ next to this file) and what they check.
-Certified skills need at least five passing cases, including one that shows
-the skill changes behaviour compared with a run without it.
+What evals/ next to this file holds (see CONTRIBUTING.md, "The promotion bar"):
+- Behaviour skills: at least five passing cases, including one that shows the
+  skill changes behaviour compared with a run without it.
+- Design and process skills: evidence of use, meaning a build made with the skill
+  and a passing guardrail-review report on it, linked from evals/README.md.
 -->

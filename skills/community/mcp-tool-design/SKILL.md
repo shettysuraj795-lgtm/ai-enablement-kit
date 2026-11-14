@@ -92,13 +92,7 @@ This skill guides design; it enforces nothing. The controls live in the server a
 
 ## Evals
 
-Planned in `evals/`. The cases will give a design brief to an agent with and without this skill, and check the resulting tool list for:
-- intent-named tools;
-- typed arguments;
-- server-side date resolution;
-- provenance on results;
-- a labelled escape hatch;
-- guidance-style errors.
+This is a design skill, so its eval is evidence of use ([CONTRIBUTING](../../../CONTRIBUTING.md#the-promotion-bar)). The evidence will be the example server in [`examples/governed-analytics-mcp/`](../../../examples/governed-analytics-mcp/), built with this skill, and a passing `guardrail-review` report on it. Both will be linked from `evals/README.md`.
 
 ## Checklist
 
