@@ -1,0 +1,8 @@
+governed_analytics:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      # Relative to the dbt/ directory, where dbt is run from.
+      path: "{{ env_var('WAREHOUSE_PATH', '../data/warehouse.duckdb') }}"
+      threads: 4

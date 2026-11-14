@@ -1,0 +1,44 @@
+version: 2
+
+sources:
+  - name: raw
+    description: Raw marketplace tables written by `data/generate.py`.
+    schema: raw
+    tables:
+      - name: dealers
+        columns:
+          - name: dealer_id
+            data_tests: [unique, not_null]
+      - name: watch_models
+        columns:
+          - name: model_id
+            data_tests: [unique, not_null]
+      - name: listings
+        description: >-
+          One row per listing per load. A replayed export loaded some listings
+          twice, so `listing_id` is not unique here; `stg_listings` keeps one
+          row per listing.
+        columns:
+          - name: listing_id
+            data_tests:
+              - not_null
+              - unique:
+                  description: Expected to warn. Documents the duplicate-listings trap.
+                  config:
+                    severity: warn
+      - name: listing_status_changes
+      - name: orders
+        columns:
+          - name: order_id
+            data_tests: [unique, not_null]
+          - name: buyer_id
+            config:
+              meta: {pii: true}
+      - name: refunds
+        columns:
+          - name: refund_id
+            data_tests: [unique, not_null]
+      - name: commissions
+        columns:
+          - name: commission_id
+            data_tests: [unique, not_null]
