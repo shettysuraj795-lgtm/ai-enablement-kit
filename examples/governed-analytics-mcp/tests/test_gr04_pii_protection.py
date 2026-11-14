@@ -148,3 +148,59 @@ def test_retention_removes_old_request_shapes_only(tmp_path):
     old, new = read_jsonl(path)
     assert "question_shape" not in old and new["question_shape"] == "new shape"
     assert old["sql_fingerprint"] == new["sql_fingerprint"]  # the queue keeps its counts
+
+
+# Retention is enforced by the server itself, not by someone remembering a command.
+
+OLD = "2026-09-01T09:00:00.000Z"  # well past 30 days before any run of these tests
+
+
+def _old_span(question: str) -> dict:
+    return {"trace_id": "0" * 32, "span_id": "0" * 16, "name": "tools/call query_metric", "kind": "SERVER",
+            "start_time": OLD, "end_time": OLD, "status": {"code": "OK", "message": None},
+            "resource": {}, "attributes": {"kit.question": question, "kit.guardrail.hits": []}}
+
+
+def test_server_purges_old_questions_at_start(tmp_path):
+    (tmp_path / "traces.jsonl").write_text(json.dumps(_old_span("old question")) + "\n")
+    (tmp_path / "certification_requests.jsonl").write_text(
+        json.dumps({"request_id": "creq_x", "created_at": OLD, "question_shape": "old shape"}) + "\n")
+
+    call_many(make_config(tmp_path), [("list_metrics", {})])  # just starting a session
+
+    old_span, _ = read_jsonl(tmp_path / "traces.jsonl")
+    [old_request] = read_jsonl(tmp_path / "certification_requests.jsonl")
+    assert "kit.question" not in old_span["attributes"] and "question_shape" not in old_request
+
+
+def test_running_server_purges_on_its_interval(tmp_path):
+    import asyncio
+
+    from mcp import Client
+
+    async def go():
+        async with Client(build_server(make_config(tmp_path, purge_interval_seconds=0.2))) as client:
+            await client.call_tool("list_metrics", {})
+            with (tmp_path / "traces.jsonl").open("a") as f:  # an old span appears mid-session
+                f.write(json.dumps(_old_span("arrived later")) + "\n")
+            await asyncio.sleep(0.6)
+            await client.call_tool("list_metrics", {})
+
+    asyncio.run(go())
+    assert "arrived later" not in (tmp_path / "traces.jsonl").read_text()
+    assert len(read_jsonl(tmp_path / "traces.jsonl")) == 3  # nothing else lost
+
+
+def test_purge_never_drops_concurrent_writes(tmp_path):
+    import threading
+
+    from governed_analytics.receipts import append
+
+    traces = tmp_path / "traces.jsonl"
+    traces.write_text("".join(json.dumps(_old_span(f"q{i}")) + "\n" for i in range(200)))
+    writer = threading.Thread(target=lambda: [append(traces, _old_span("new")) for _ in range(300)])
+    writer.start()
+    for _ in range(20):
+        purge_questions(traces, now=dt.datetime(2026, 11, 14, tzinfo=dt.UTC), days=30)
+    writer.join()
+    assert len(read_jsonl(traces)) == 500

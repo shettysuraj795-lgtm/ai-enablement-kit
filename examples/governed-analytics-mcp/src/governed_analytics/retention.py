@@ -1,6 +1,8 @@
 """Delete question text from old spans and certification requests (GR-04 retention).
 
-Only the free-text field goes; the rest of each record is kept.
+Only the free-text field goes; the rest of each record is kept. The server
+runs `purge_all` at start-up and every `purge_interval_seconds` while it runs;
+this command does the same on demand.
 
     python -m governed_analytics.retention              # default: 30 days
     python -m governed_analytics.retention --days 7
@@ -15,9 +17,18 @@ import os
 import sys
 from pathlib import Path
 
+from governed_analytics.receipts import WRITE_LOCK
 from governed_analytics.service import Config
 
 DEFAULT_DAYS = 30
+
+
+def purge_all(log_dir: Path, now: dt.datetime, days: int = DEFAULT_DAYS) -> tuple[int, int]:
+    """Purge both logs. Returns (spans, certification requests) purged."""
+    return (
+        purge_questions(log_dir / "traces.jsonl", now, days),
+        purge_request_shapes(log_dir / "certification_requests.jsonl", now, days),
+    )
 
 
 def purge_questions(traces: Path, now: dt.datetime, days: int = DEFAULT_DAYS) -> int:
@@ -31,6 +42,11 @@ def purge_request_shapes(requests: Path, now: dt.datetime, days: int = DEFAULT_D
 
 
 def _purge(path: Path, now: dt.datetime, days: int, time_field: str, holder, field: str) -> int:
+    with WRITE_LOCK:  # no append can land between the read and the replace
+        return _purge_locked(path, now, days, time_field, holder, field)
+
+
+def _purge_locked(path: Path, now: dt.datetime, days: int, time_field: str, holder, field: str) -> int:
     if not path.exists():
         return 0
     cutoff = now - dt.timedelta(days=days)
@@ -51,11 +67,10 @@ def _purge(path: Path, now: dt.datetime, days: int, time_field: str, holder, fie
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--days", type=int, default=int(os.environ.get("KIT_QUESTION_RETENTION_DAYS", DEFAULT_DAYS)))
+    config = Config.from_env()
+    parser.add_argument("--days", type=int, default=config.retention_days)
     args = parser.parse_args()
-    log_dir, now = Config.from_env().log_dir, dt.datetime.now(dt.UTC)
-    spans = purge_questions(log_dir / "traces.jsonl", now, args.days)
-    requests = purge_request_shapes(log_dir / "certification_requests.jsonl", now, args.days)
+    spans, requests = purge_all(config.log_dir, dt.datetime.now(dt.UTC), args.days)
     print(f"Removed question text from {spans} span(s) and {requests} certification request(s) older than {args.days} days")
     return 0
 

@@ -61,7 +61,7 @@ Each requirement has its own test file, `tests/test_grNN_*.py`, tagged so that `
 | GR-01 | `connect_read_only`: `read_only=True` and `enable_external_access=False` (read-only alone still allows `COPY ... TO`) | `pytest -m gr01` |
 | GR-02 | `explore_sql` checks the parsed tree: one SELECT, `marts.*` or CTEs only, no table, file or SQL-string functions; executes the regenerated SQL | `pytest -m gr02` |
 | GR-03 | At most `row_cap + 1` rows fetched; `con.interrupt()` after `timeout_seconds`; `truncated` flag and `GR-03` span hit | `pytest -m gr03` |
-| GR-04 | PII columns from the dbt manifest; the server refuses to start if a metric exposes one; `explore_sql` blocks PII columns, whole-row references and `*` over PII tables; `question` only in `kit.question`; `governed_analytics.retention` purges it | `pytest -m gr04` |
+| GR-04 | PII columns from the dbt manifest; the server refuses to start if a metric exposes one; `explore_sql` blocks PII columns, whole-row references and `*` over PII tables; `question` only in `kit.question`; the server purges it (and `question_shape`) at start-up and daily, under a write lock | `pytest -m gr04` |
 | GR-05 | Receipt appended before the result is returned; `governed_analytics.replay` checks definition and data | `pytest -m gr05` |
 | GR-06 | Label set from the catalogue's `certified` flag; it agrees in response, receipt and span | `pytest -m gr06` |
 | GR-07 | One span per `tools/call` from the middleware, including schema rejections and unknown tools | `pytest -m gr07` |
@@ -77,8 +77,11 @@ Each requirement has its own test file, `tests/test_grNN_*.py`, tagged so that `
 | `KIT_WAREHOUSE` | `data/warehouse.duckdb` | The DuckDB file |
 | `KIT_DBT_TARGET` | `dbt/target` | Where `run_results.json` gives the data snapshot |
 | `KIT_ROW_CAP`, `KIT_TIMEOUT_SECONDS` | `1000`, `30` | GR-03 limits |
+| `KIT_QUESTION_RETENTION_DAYS`, `KIT_PURGE_INTERVAL_SECONDS` | `30`, `86400` | GR-04 retention and how often a running server purges |
 
 ## Known limits
+
+- The write lock only works within one process. Run the manual retention command while the server is stopped, or rely on the server's own purge.
 
 - `explore_sql` blocks aggregates over PII too (for example `count(DISTINCT buyer_id)`). A buyer count needs a governed metric.
 - The function blocklist must grow when DuckDB adds file-reading functions. The connection's disabled external access is the backstop.

@@ -7,7 +7,9 @@ service.py, tracing in tracing.py.
 # No `from __future__ import annotations` here: the tool's argument types are
 # built from the catalogue at runtime, and pydantic must see them as objects.
 
+import contextlib
 import datetime as dt
+import logging
 from typing import Annotated, Any, Literal
 
 import anyio
@@ -19,6 +21,7 @@ from governed_analytics.catalogue import CatalogueError, Metric, load_catalogue,
 from governed_analytics.intent import OPS
 from governed_analytics.manifest import Manifest, load_manifest
 from governed_analytics.periods import RELATIVE_PERIODS
+from governed_analytics.retention import purge_all
 from governed_analytics.service import Config, QueryError, QueryService
 from governed_analytics.tracing import TraceMiddleware
 from governed_analytics.validate import against_manifest
@@ -45,6 +48,7 @@ def build_server(config: Config, catalogue: dict[str, Metric] | None = None) -> 
         version=VERSION,
         instructions=INSTRUCTIONS,
         middleware=[TraceMiddleware(config.log_dir / "traces.jsonl", config.persona, VERSION, config.transport)],
+        lifespan=_retention_lifespan(config),
     )
 
     # Enums from the catalogue: the model can only ask for what exists (mcp-tool-design step 2).
@@ -155,6 +159,30 @@ def build_server(config: Config, catalogue: dict[str, Metric] | None = None) -> 
             raise ToolError(str(e)) from e
 
     return server
+
+
+def _retention_lifespan(config: Config):
+    """GR-04 retention, enforced by the server: purge at start-up, then on a timer while it runs."""
+
+    def purge() -> None:
+        spans, requests = purge_all(config.log_dir, dt.datetime.now(dt.UTC), config.retention_days)
+        if spans or requests:
+            logging.getLogger(__name__).info("Retention: purged %d span(s), %d request(s)", spans, requests)
+
+    async def every_interval() -> None:
+        while True:
+            await anyio.sleep(config.purge_interval_seconds)
+            await anyio.to_thread.run_sync(purge)
+
+    @contextlib.asynccontextmanager
+    async def lifespan(server: MCPServer):
+        purge()
+        async with anyio.create_task_group() as tasks:
+            tasks.start_soon(every_interval)
+            yield {}
+            tasks.cancel_scope.cancel()
+
+    return lifespan
 
 
 def _describe_explore(manifest: Manifest) -> str:

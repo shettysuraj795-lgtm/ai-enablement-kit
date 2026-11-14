@@ -4,6 +4,9 @@ Every change to a requirement's wording is recorded here, newest first. A change
 
 ## 14 Nov 2026
 
+- **GR-04 (Personal data is never returned or logged), *Enforced by* and *How to verify*.** Retention is now enforced by the server: it purges at start-up and every day while it runs. A write lock stops a purge from dropping lines written during it.
+  - **Why:** the [first guardrail review](../examples/governed-analytics-mcp/reports/guardrail-review-2026-11-14.md) found GR-04 *Not met*. The purge existed but nothing ran it, so deleting question text depended on someone remembering.
+  - **Reports made stale:** that review's GR-04 row. See the [second review](../examples/governed-analytics-mcp/reports/guardrail-review-2026-11-14-2.md).
 - **GR-04 (Personal data is never returned or logged), *Retention* and *How to verify*.** Retention now also covers `question_shape` in certification requests.
   - **Why:** `request_certification` stores the user's question in general terms. Even when it's asked for without personal details, it's free text derived from a question, so it gets the same retention as `kit.question` instead of becoming a second, unpurged copy.
   - **Reports made stale:** none.

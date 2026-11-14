@@ -6,6 +6,7 @@ import datetime as dt
 import hashlib
 import json
 import os
+import threading
 import time
 from decimal import Decimal
 from pathlib import Path
@@ -17,6 +18,10 @@ from sqlglot import exp
 SCHEMA_VERSION = "1.0"
 
 _CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+
+# Held while appending to, or rewriting, any log file in this process, so a
+# retention purge never drops a line written while it runs.
+WRITE_LOCK = threading.Lock()
 
 
 def new_receipt_id() -> str:
@@ -86,5 +91,5 @@ def new_id(prefix: str) -> str:
 def append(path: Path, record: dict) -> None:
     """Append one JSON object as one line. Shared by receipts and traces."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a", encoding="utf-8") as f:
+    with WRITE_LOCK, path.open("a", encoding="utf-8") as f:
         f.write(json.dumps(record, ensure_ascii=False, separators=(",", ":")) + "\n")

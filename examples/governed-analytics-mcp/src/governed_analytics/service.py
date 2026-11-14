@@ -35,6 +35,8 @@ class Config:
     as_of: dt.date | None = None  # None: today in UTC
     row_cap: int = 1000
     timeout_seconds: float = 30.0
+    retention_days: int = 30  # GR-04: question text older than this is deleted
+    purge_interval_seconds: float = 86400.0  # how often a running server purges
     transport: str | None = None
 
     @classmethod
@@ -49,6 +51,8 @@ class Config:
             as_of=dt.date.fromisoformat(as_of) if as_of else None,
             row_cap=int(env("KIT_ROW_CAP", "1000")),
             timeout_seconds=float(env("KIT_TIMEOUT_SECONDS", "30")),
+            retention_days=int(env("KIT_QUESTION_RETENTION_DAYS", "30")),
+            purge_interval_seconds=float(env("KIT_PURGE_INTERVAL_SECONDS", "86400")),
             transport=transport,
         )
 
