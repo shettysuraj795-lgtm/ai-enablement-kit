@@ -1,0 +1,18 @@
+name: commission_revenue
+description: >-
+  Commission charged to dealers on paid orders, minus commission refunded to
+  dealers when orders are refunded, in EUR. This is the marketplace's own
+  revenue. Refunded commission is attributed to the original order's date, so
+  a past period's figure can fall as late refunds arrive. Non-EUR orders are
+  converted at the reference rate on the order date.
+model: fct_orders
+expression: sum(net_commission_eur)
+time_dimension: order_date
+time_grains: [day, week, month, quarter, year]
+allowed_dimensions: [dealer_region, dealer_tier, listing_category, order_currency]
+filters:
+  - {column: is_paid, op: "=", value: true}
+unit: EUR
+version: 1.0.0
+owner: bi-finance
+certified: true

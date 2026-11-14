@@ -1,0 +1,16 @@
+name: refund_rate
+description: >-
+  Refunded value as a share of gross merchandise value, for paid orders.
+  Refunds are attributed to the original order's date, so recent periods
+  rise as refunds arrive.
+model: fct_orders
+expression: sum(refund_amount_eur) / nullif(sum(gross_amount_eur), 0)
+time_dimension: order_date
+time_grains: [week, month, quarter, year]
+allowed_dimensions: [dealer_region, dealer_tier, listing_category, order_currency]
+filters:
+  - {column: is_paid, op: "=", value: true}
+unit: ratio
+version: 1.0.0
+owner: bi-finance
+certified: true

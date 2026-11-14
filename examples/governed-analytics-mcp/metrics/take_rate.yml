@@ -1,0 +1,16 @@
+name: take_rate
+description: >-
+  Commission charged to dealers as a share of gross merchandise value, for
+  paid orders, before any commission is refunded. For commission earned after
+  refunds, use commission_revenue.
+model: fct_orders
+expression: sum(commission_eur) / nullif(sum(gross_amount_eur), 0)
+time_dimension: order_date
+time_grains: [month, quarter, year]
+allowed_dimensions: [dealer_region, dealer_tier, listing_category]
+filters:
+  - {column: is_paid, op: "=", value: true}
+unit: ratio
+version: 1.0.0
+owner: bi-finance
+certified: true

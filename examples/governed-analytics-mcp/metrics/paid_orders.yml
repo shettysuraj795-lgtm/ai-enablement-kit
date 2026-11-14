@@ -1,0 +1,15 @@
+name: paid_orders
+description: >-
+  Number of paid orders, counted on the order date. Refunded orders still
+  count; use refund_rate for refunds.
+model: fct_orders
+expression: count(order_id)
+time_dimension: order_date
+time_grains: [day, week, month, quarter, year]
+allowed_dimensions: [dealer_id, dealer_region, dealer_tier, listing_category, order_currency]
+filters:
+  - {column: is_paid, op: "=", value: true}
+unit: count
+version: 1.0.0
+owner: bi-sales
+certified: true

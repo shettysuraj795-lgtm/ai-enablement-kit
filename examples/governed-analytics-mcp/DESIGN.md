@@ -10,6 +10,10 @@ The design note that [`mcp-tool-design`](../../skills/community/mcp-tool-design/
 
 This is the first slice, so there is only one tool. Planned next: `list_metrics` (catalogue and glossary), `explore_sql` (the guarded escape hatch, step 8) and `request_certification`. Replay stays a command for BI, not a tool for the model.
 
+## Catalogue
+
+All seven metrics from [metric catalogue v0](../../docs/contracts/metric-catalogue-v0.md) are in `metrics/`, and a test keeps the files identical to the contract. `active_listings` is uncertified, so its results are labelled exploratory (GR-06). The catalogue refuses to load a metric that divides by anything other than `nullif(…, 0)`, so a ratio over an empty group returns NULL instead of failing. That check is in code, not left to authoring convention.
+
 ## Where the skill shaped the build
 
 | Step | Choice in this server | Where |

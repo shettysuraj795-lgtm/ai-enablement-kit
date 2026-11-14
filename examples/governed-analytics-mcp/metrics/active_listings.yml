@@ -1,0 +1,16 @@
+name: active_listings
+description: >-
+  Number of distinct listings that were active on at least one day in the
+  period. Not certified: "active on the last day of the period" is the
+  alternative under review.
+model: fct_listings
+expression: count(DISTINCT listing_id)
+time_dimension: snapshot_date
+time_grains: [day, week, month]
+allowed_dimensions: [dealer_id, dealer_region, dealer_tier, listing_category]
+filters:
+  - {column: is_active, op: "=", value: true}
+unit: count
+version: 0.1.0
+owner: bi-sales
+certified: false

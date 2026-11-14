@@ -1,0 +1,15 @@
+name: gross_merchandise_value
+description: >-
+  Value of paid orders before refunds, in EUR. Non-EUR orders are converted at
+  the reference rate on the order date.
+model: fct_orders
+expression: sum(gross_amount_eur)
+time_dimension: order_date
+time_grains: [day, week, month, quarter, year]
+allowed_dimensions: [dealer_id, dealer_region, dealer_tier, listing_category, order_currency]
+filters:
+  - {column: is_paid, op: "=", value: true}
+unit: EUR
+version: 1.0.0
+owner: bi-finance
+certified: true

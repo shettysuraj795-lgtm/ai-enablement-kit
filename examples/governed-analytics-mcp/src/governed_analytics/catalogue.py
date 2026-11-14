@@ -1,6 +1,6 @@
 """Metric definitions, as defined by docs/contracts/metric-definition.md.
 
-Loading only: validation against the dbt manifest (GR-04, GR-08) comes later.
+Loading plus the division guard. Validation against the dbt manifest (GR-04, GR-08) comes later.
 """
 
 from __future__ import annotations
@@ -8,7 +8,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+import sqlglot
 import yaml
+from sqlglot import exp
 
 from governed_analytics.intent import Filter
 
@@ -31,8 +33,13 @@ class Metric:
     certified: bool
 
 
+class CatalogueError(ValueError):
+    """A metric definition that must not be served."""
+
+
 def load_metric(path: Path) -> Metric:
     data = yaml.safe_load(path.read_text())
+    _check_division(data["name"], data["expression"])
     return Metric(
         name=data["name"],
         description=data["description"],
@@ -52,3 +59,14 @@ def load_metric(path: Path) -> Metric:
 def load_catalogue(directory: Path = METRICS_DIR) -> dict[str, Metric]:
     metrics = (load_metric(p) for p in sorted(directory.glob("*.yml")))
     return {m.name: m for m in metrics}
+
+
+def _check_division(name: str, expression: str) -> None:
+    """Every division must be by nullif(..., 0), so an empty group gives NULL, not an error."""
+    for division in sqlglot.parse_one(expression, dialect="duckdb").find_all(exp.Div):
+        denominator = division.expression
+        if not (isinstance(denominator, exp.Nullif) and denominator.expression.sql() == "0"):
+            raise CatalogueError(
+                f"{name}: divide by nullif(<denominator>, 0), not by {denominator.sql()}, "
+                "so an empty group returns NULL instead of failing."
+            )
