@@ -59,6 +59,9 @@ TIERS = {
     "premium": (30, 2, Decimal("0.055")),
     "platinum": (15, 4, Decimal("0.045")),
 }
+# Commission per order is capped, in the order's currency, so take rate falls
+# for expensive watches and differs from the headline tier rate.
+COMMISSION_CAP = Decimal("900")
 N_DEALERS = 150
 N_BUYERS = 6000
 
@@ -257,7 +260,7 @@ def generate(rng: random.Random):
             continue
         dealer = dealer_by_id[dealer_of_listing[order["listing_id"]]]
         rate = TIERS[dealer["subscription_tier"]][2]
-        commission = money(order["amount"] * rate)
+        commission = min(money(order["amount"] * rate), COMMISSION_CAP)
         n_commission += 1
         commissions.append(_commission(n_commission, order, None, "charge", commission, order["paid_at"]))
 
