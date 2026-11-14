@@ -45,7 +45,7 @@ Relative periods are resolved to absolute dates by the server before compiling, 
 `result.hash` is `sha256:` followed by the hex SHA-256 of the canonical result:
 
 1. Rows in the order given by the compiled SQL, which always ends in `ORDER BY` over every non-aggregate column.
-2. Each value rendered as a string: decimals at their column's fixed scale, dates and timestamps in ISO 8601 UTC, `NULL` as `null`.
+2. Each value rendered as a string: decimals at their column's fixed scale, metrics with `unit: ratio` at 6 decimal places, dates and timestamps in ISO 8601 UTC, `NULL` as `null`.
 3. Serialised as a JSON array whose first element is the column names and the rest are rows, with no whitespace, encoded as UTF-8.
 
 ## Replay
