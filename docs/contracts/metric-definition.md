@@ -15,7 +15,7 @@ A metric definition is the only place a number's meaning is decided. The assista
 | `name` | string, `snake_case` | yes | Unique ID. Never reused, even after a metric is retired. |
 | `description` | string | yes | Plain-English definition, including the choices a reader could get wrong (what is included, which date, which currency). Shown to the user with every result. |
 | `model` | string | yes | The dbt model the metric reads from, by model name (for example `fct_orders`). Must be a mart, not a staging or raw model. |
-| `expression` | string | yes | One aggregate SQL expression over columns of `model`, for example `sum(net_amount_eur)`. No subqueries, no joins. |
+| `expression` | string | yes | One SQL expression built from aggregates over columns of `model`, for example `sum(net_amount_eur)` or `sum(refund_amount_eur) / nullif(sum(gross_amount_eur), 0)`. No subqueries, no joins. |
 | `time_dimension` | string | yes | The date or timestamp column that time grains and time ranges apply to. |
 | `time_grains` | list | yes | Allowed grains, chosen from `day`, `week`, `month`, `quarter`, `year`. Weeks start on Monday; quarters are calendar quarters. |
 | `allowed_dimensions` | list of strings | yes (may be empty) | Columns of `model` the metric may be grouped or filtered by. Must not include columns flagged as PII ([GR-04](../../requirements/GR-04-pii-protection.md)). |
@@ -56,7 +56,7 @@ A definition is rejected if:
 
 - any required field is missing or has the wrong type;
 - `model` is not a mart in the dbt manifest, or any referenced column does not exist on it;
-- `expression` does not parse as a single aggregate expression;
+- `expression` does not parse as a single expression in which every column reference sits inside an aggregate;
 - `allowed_dimensions` contains a PII column;
 - `certified: true` and no golden eval question references the metric.
 
@@ -86,4 +86,4 @@ owner: bi-finance
 certified: true
 ```
 
-For this slice, `fct_orders` must provide the columns `order_id`, `order_date`, `is_paid`, `net_amount_eur`, `dealer_region`, `dealer_tier`, `listing_category` and `order_currency`. `net_amount_eur` is computed and tested in dbt.
+The full set of metrics, and the mart columns they need, is in the [metric catalogue v0](metric-catalogue-v0.md). `net_amount_eur` is computed and tested in dbt.
