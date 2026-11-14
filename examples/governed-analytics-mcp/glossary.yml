@@ -1,0 +1,14 @@
+# Ambiguous business terms and the governed metrics they could mean.
+# Mirrors the glossary in docs/contracts/metric-catalogue-v0.md (a test keeps the metric sets equal).
+revenue:
+  - {metric: gross_merchandise_value, meaning: "Everything buyers paid, before refunds"}
+  - {metric: net_merchandise_value, meaning: "What buyers paid, after refunds"}
+  - {metric: commission_revenue, meaning: "What the marketplace itself earned: commission after refunded commission"}
+sales:
+  - {metric: gross_merchandise_value, meaning: "Value sold"}
+  - {metric: paid_orders, meaning: "Number of orders"}
+commission:
+  - {metric: commission_revenue, meaning: "An amount in EUR"}
+  - {metric: take_rate, meaning: "A share of sales"}
+listings:
+  - {metric: active_listings, meaning: "Listings live in the period; the only option, but uncertified"}

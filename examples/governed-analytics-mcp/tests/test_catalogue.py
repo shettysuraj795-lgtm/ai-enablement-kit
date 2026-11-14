@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from governed_analytics.catalogue import METRICS_DIR, CatalogueError, load_catalogue, load_metric
+from governed_analytics.catalogue import METRICS_DIR, CatalogueError, load_catalogue, load_glossary, load_metric
 from governed_analytics.compiler import compile_intent
 from governed_analytics.intent import Intent
 
@@ -60,6 +60,24 @@ def test_compiles_last_quarter(name):
     grain = "quarter" if "quarter" in metric.time_grains else "month"
     intent = Intent.from_dict({"metric": name, "time_grain": grain, "time_range": Q3})
     assert compile_intent(intent, metric) == EXPECTED_SQL[name]
+
+
+def test_glossary_matches_the_contract():
+    section = CONTRACT.read_text().split("## Glossary")[1].split("**Expected behaviour.**")[0]
+    in_contract, term = {}, None
+    for row in re.findall(r"^\|(.+)\|$", section, re.M)[2:]:  # skip header and divider
+        cells = [c.strip() for c in row.split("|")]
+        term = cells[0] or term  # continuation rows leave the term blank
+        in_contract.setdefault(term, set()).update(re.findall(r"`(\w+)`", cells[1]))
+    in_file = {t: {o.metric for o in opts} for t, opts in load_glossary(CATALOGUE).items()}
+    assert in_file == in_contract
+
+
+def test_glossary_rejects_unknown_metrics(tmp_path):
+    path = tmp_path / "glossary.yml"
+    path.write_text("revenue:\n  - {metric: turnover, meaning: x}\n")
+    with pytest.raises(CatalogueError, match="turnover"):
+        load_glossary(CATALOGUE, path)
 
 
 @pytest.mark.parametrize(

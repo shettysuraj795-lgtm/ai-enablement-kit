@@ -17,7 +17,7 @@ from typing import Any
 import duckdb
 
 from governed_analytics import receipts, tracing
-from governed_analytics.catalogue import Metric
+from governed_analytics.catalogue import GlossaryOption, Metric
 from governed_analytics.compiler import COMPILER_VERSION, IntentError, compile_intent
 from governed_analytics.intent import Filter, Intent, TimeRange
 from governed_analytics.periods import RELATIVE_PERIODS, resolve
@@ -64,9 +64,59 @@ class QueryError(Exception):
 
 
 class QueryService:
-    def __init__(self, config: Config, catalogue: dict[str, Metric]):
+    def __init__(
+        self,
+        config: Config,
+        catalogue: dict[str, Metric],
+        glossary: dict[str, tuple[GlossaryOption, ...]] | None = None,
+    ):
         self.config = config
         self.catalogue = catalogue
+        self.glossary = glossary or {}
+
+    def list_metrics(self, term: str | None = None) -> dict[str, Any]:
+        """The catalogue, or the governed options for one ambiguous term."""
+        if term:
+            options = self.glossary.get(term.strip().lower())
+            if options:
+                return {
+                    "term": term,
+                    "options": [
+                        {**_summary(self.catalogue[o.metric]), "meaning": o.meaning} for o in options
+                    ],
+                    "next_step": (
+                        f"'{term}' could mean {len(options)} governed metric(s). Unless the user's question "
+                        "already settles it, list these options and ask which one they mean; otherwise "
+                        "say which one you chose and why."
+                        if len(options) > 1
+                        else f"'{term}' maps to one metric. Say which one you used."
+                    ),
+                }
+        return {
+            "metrics": [_summary(m) for m in sorted(self.catalogue.values(), key=lambda m: m.name)],
+            "glossary": {t: [o.metric for o in opts] for t, opts in sorted(self.glossary.items())},
+            "next_step": (
+                (f"No glossary entry for '{term}'. " if term else "")
+                + "Pick the metric whose definition fits the question; call describe_metric for details."
+            ),
+        }
+
+    def describe_metric(self, metric: str) -> dict[str, Any]:
+        definition = self.catalogue.get(metric)
+        if definition is None:
+            raise QueryError(
+                f"Unknown metric '{metric}'. Use one of: {', '.join(sorted(self.catalogue))}.",
+                "invalid_intent",
+            )
+        return {
+            **_summary(definition),
+            "definition": definition.description,
+            "owner": definition.owner,
+            "time_grains": list(definition.time_grains),
+            "allowed_dimensions": list(definition.allowed_dimensions),
+            "always_applied": [_describe_filter(f) for f in definition.filters],
+            "glossary_terms": sorted(t for t, opts in self.glossary.items() if any(o.metric == metric for o in opts)),
+        }
 
     def query_metric(
         self,
@@ -190,6 +240,22 @@ class QueryService:
             tracing.guardrail_hit("GR-03")
         rows = [[receipts.render(v, c) for v, c in zip(row, columns)] for row in fetched[:cap]]
         return columns, rows, truncated
+
+
+def _summary(metric: Metric) -> dict[str, Any]:
+    return {
+        "name": metric.name,
+        "summary": metric.description.split(". ")[0].rstrip(".") + ".",
+        "unit": metric.unit,
+        "version": metric.version,
+        "certified": metric.certified,
+    }
+
+
+def _describe_filter(f: Filter) -> str:
+    if f.op in ("is_null", "is_not_null"):
+        return f"{f.column} {f.op.replace('_', ' ')}"
+    return f"{f.column} {f.op} {f.value}"
 
 
 def _intent_record(intent: Intent) -> dict[str, Any]:

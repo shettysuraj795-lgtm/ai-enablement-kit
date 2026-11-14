@@ -15,7 +15,7 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import BaseModel, Field
 
-from governed_analytics.catalogue import Metric, load_catalogue
+from governed_analytics.catalogue import Metric, load_catalogue, load_glossary
 from governed_analytics.intent import OPS
 from governed_analytics.periods import RELATIVE_PERIODS
 from governed_analytics.service import Config, QueryError, QueryService
@@ -25,14 +25,15 @@ VERSION = "0.1.0"
 GRAINS = ("day", "week", "month", "quarter", "year")
 
 INSTRUCTIONS = (
-    "Governed business metrics. Answer data questions with query_metric, and always report "
+    "Governed business metrics. Use list_metrics and describe_metric to choose a metric, answer with "
+    "query_metric, and always report "
     "the metric name and version, whether the result is certified, the time range and the receipt ID."
 )
 
 
 def build_server(config: Config, catalogue: dict[str, Metric] | None = None) -> MCPServer:
     catalogue = catalogue or load_catalogue()
-    service = QueryService(config, catalogue)
+    service = QueryService(config, catalogue, load_glossary(catalogue))
     server = MCPServer(
         name="governed-analytics",
         version=VERSION,
@@ -50,6 +51,32 @@ def build_server(config: Config, catalogue: dict[str, Metric] | None = None) -> 
         value: str | int | float | bool | list[str | int | float | bool] | None = Field(
             default=None, description="A single value; a list for in/not_in; omit for is_null/is_not_null."
         )
+
+    @server.tool(
+        name="list_metrics",
+        description=(
+            "List the governed metrics, or, with `term`, the metrics an everyday word could mean "
+            "(for example 'revenue' or 'sales'). Call this when the user's wording could fit more than one metric."
+        ),
+    )
+    async def list_metrics(
+        term: Annotated[
+            str | None, Field(description="An everyday word from the user's question, e.g. 'revenue'.")
+        ] = None,
+    ) -> dict[str, Any]:
+        return service.list_metrics(term)
+
+    @server.tool(
+        name="describe_metric",
+        description="Explain exactly what one metric means: definition, what is always included or excluded, grains and dimensions.",
+    )
+    async def describe_metric(
+        metric: Annotated[MetricName, Field(description="The metric to explain.")],
+    ) -> dict[str, Any]:
+        try:
+            return service.describe_metric(metric)
+        except QueryError as e:
+            raise ToolError(str(e)) from e
 
     @server.tool(name="query_metric", description=_describe(catalogue))
     async def query_metric(
@@ -101,8 +128,9 @@ def _describe(catalogue: dict[str, Metric]) -> str:
         lines.append(f"- {m.name} ({m.unit}, {label}, v{m.version}): {first_sentence}.")
     lines += [
         "",
-        "If the user's words could mean more than one metric (for example 'revenue'), list the "
-        "options and ask, or say which one you chose and why. Prefer `period` for relative dates.",
+        "If the user's words could mean more than one metric (for example 'revenue'), call "
+        "list_metrics with that term first, then ask or say which one you chose and why. "
+        "Prefer `period` for relative dates.",
     ]
     return "\n".join(lines)
 

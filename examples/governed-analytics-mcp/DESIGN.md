@@ -6,9 +6,13 @@ The design note that [`mcp-tool-design`](../../skills/community/mcp-tool-design/
 
 | Tool | Intent sentence | Arguments | Returns |
 |---|---|---|---|
+| `list_metrics` | "What can I ask about?" / "What could *revenue* mean?" | optional `term` | The catalogue and glossary; with a known `term`, its governed options, their meanings and the next step (ask, or name the choice) |
+| `describe_metric` | "What exactly does *metric* mean?" | `metric` | Definition, unit, version, certified flag, owner, grains, dimensions, filters always applied, glossary terms that lead to it |
 | `query_metric` | "What was *metric* for *period*, by *dimension*?" | `metric`, `time_grain`, `period` or `start`+`end`, `dimensions`, `filters`, optional `question` | Rows, metric definition and version, `certified`/`exploratory` label, resolved time range, receipt ID, reporting instruction |
 
-This is the first slice, so there is only one tool. Planned next: `list_metrics` (catalogue and glossary), `explore_sql` (the guarded escape hatch, step 8) and `request_certification`. Replay stays a command for BI, not a tool for the model.
+Planned next: `explore_sql` (the guarded escape hatch, step 8) and `request_certification`. Replay stays a command for BI, not a tool for the model.
+
+The glossary lives in `glossary.yml` and a test keeps it in step with the contract. Surfacing the options for "revenue" is the server's job; *acting* on them (asking the user, or naming the choice) is the assistant's, guided by the tool's `next_step` and later the `governed-analytics` skill. Only the first part is a hard control.
 
 ## Catalogue
 
@@ -18,7 +22,7 @@ All seven metrics from [metric catalogue v0](../../docs/contracts/metric-catalog
 
 | Step | Choice in this server | Where |
 |---|---|---|
-| 1. Name the intents | One intent-named tool, `query_metric`; no `run_sql` on the governed path | `server.py` |
+| 1. Name the intents | Three intent-named tools (`list_metrics`, `describe_metric`, `query_metric`); no `run_sql` on the governed path | `server.py` |
 | 2. Type every argument | `metric`, `dimensions`, `time_grain`, `period` and filter `op` are enums built from the catalogue; dates are typed; relative periods are resolved on the server against a recorded as-of date | `server.py`, `periods.py` |
 | 3. Compile deterministically | The model fills in the intent; `compile_intent` produces the SQL; dimensions and filters are sorted so order doesn't matter | `compiler.py` |
 | 4. Provenance on every result | The response carries the metric's definition and version, the label, the time range and a receipt ID, plus an instruction to report them | `service.py` |

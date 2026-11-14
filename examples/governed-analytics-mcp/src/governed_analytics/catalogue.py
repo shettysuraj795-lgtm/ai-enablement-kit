@@ -15,6 +15,7 @@ from sqlglot import exp
 from governed_analytics.intent import Filter
 
 METRICS_DIR = Path(__file__).resolve().parents[2] / "metrics"
+GLOSSARY_PATH = Path(__file__).resolve().parents[2] / "glossary.yml"
 
 
 @dataclass(frozen=True)
@@ -59,6 +60,25 @@ def load_metric(path: Path) -> Metric:
 def load_catalogue(directory: Path = METRICS_DIR) -> dict[str, Metric]:
     metrics = (load_metric(p) for p in sorted(directory.glob("*.yml")))
     return {m.name: m for m in metrics}
+
+
+@dataclass(frozen=True)
+class GlossaryOption:
+    metric: str
+    meaning: str
+
+
+def load_glossary(catalogue: dict[str, Metric], path: Path = GLOSSARY_PATH) -> dict[str, tuple[GlossaryOption, ...]]:
+    """Ambiguous terms -> the metrics they could mean. Every metric named must exist."""
+    glossary = {
+        term.lower(): tuple(GlossaryOption(**option) for option in options)
+        for term, options in yaml.safe_load(path.read_text()).items()
+    }
+    for term, options in glossary.items():
+        for option in options:
+            if option.metric not in catalogue:
+                raise CatalogueError(f"Glossary term '{term}' names unknown metric '{option.metric}'.")
+    return glossary
 
 
 def _check_division(name: str, expression: str) -> None:

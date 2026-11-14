@@ -63,15 +63,47 @@ def golden(question_id: str) -> dict:
     return next(q for q in questions if q["id"] == question_id)["expected"]
 
 
-def test_lists_one_tool_with_catalogue_enums(config):
+def test_lists_intent_tools_with_catalogue_enums(config):
     async def go():
         async with Client(build_server(config)) as client:
             return await client.list_tools()
 
-    tools = asyncio.run(go()).tools
-    assert [t.name for t in tools] == ["query_metric"]
-    schema = json.dumps(tools[0].input_schema)
+    tools = {t.name: t for t in asyncio.run(go()).tools}
+    assert sorted(tools) == ["describe_metric", "list_metrics", "query_metric"]
+    schema = json.dumps(tools["query_metric"].input_schema)
     assert "net_merchandise_value" in schema and "last_quarter" in schema and "dealer_region" in schema
+
+
+def test_revenue_surfaces_its_three_options(config):
+    answer = call(config, {"term": "Revenue"}, tool="list_metrics").structured_content
+    assert [o["name"] for o in answer["options"]] == [
+        "gross_merchandise_value",
+        "net_merchandise_value",
+        "commission_revenue",
+    ]
+    assert all(o["meaning"] and o["certified"] for o in answer["options"])
+    assert "ask which one they mean" in answer["next_step"]
+
+
+def test_list_metrics_without_term_lists_catalogue_and_glossary(config):
+    answer = call(config, {}, tool="list_metrics").structured_content
+    assert len(answer["metrics"]) == 7
+    assert answer["glossary"]["sales"] == ["gross_merchandise_value", "paid_orders"]
+
+
+def test_unknown_term_falls_back_to_catalogue(config):
+    answer = call(config, {"term": "turnover"}, tool="list_metrics").structured_content
+    assert len(answer["metrics"]) == 7 and "No glossary entry for 'turnover'" in answer["next_step"]
+
+
+def test_describe_metric(config):
+    answer = call(config, {"metric": "take_rate"}, tool="describe_metric").structured_content
+    assert answer["time_grains"] == ["month", "quarter", "year"]
+    assert answer["always_applied"] == ["is_paid = True"]
+    assert answer["glossary_terms"] == ["commission"]
+    [span] = read_jsonl(config.log_dir / "traces.jsonl")  # traced, but no receipt: it returns no data
+    assert span["name"] == "tools/call describe_metric"
+    assert read_jsonl(config.log_dir / "receipts.jsonl") == []
 
 
 def test_happy_path_returns_golden_answer_with_provenance(config):
