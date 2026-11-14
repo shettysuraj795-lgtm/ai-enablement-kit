@@ -1,0 +1,12 @@
+[project]
+name = "governed-analytics"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = ["duckdb==2.0.0", "pyyaml==6.0.3"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src", "data"]
+testpaths = ["tests"]
+markers = [
+    "integration: needs data/warehouse.duckdb built by the generator and dbt",
+]
