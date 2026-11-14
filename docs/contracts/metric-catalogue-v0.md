@@ -11,7 +11,7 @@ This catalogue fixes which metrics exist and what the marts must provide for the
 | Metric | Question it answers | Finance analyst | Sales/Ops lead | Model | Certified |
 |---|---|---|---|---|---|
 | `gross_merchandise_value` | How much was sold? | ✓ | ✓ | `fct_orders` | yes |
-| `net_revenue` | How much was sold, after refunds? | ✓ | | `fct_orders` | yes |
+| `net_merchandise_value` | How much was sold, after refunds? | ✓ | | `fct_orders` | yes |
 | `refund_rate` | What share of sales was refunded? | ✓ | | `fct_orders` | yes |
 | `take_rate` | What share of sales did the marketplace keep as commission? | ✓ | | `fct_orders` | yes |
 | `paid_orders` | How many orders were paid? | | ✓ | `fct_orders` | yes |
@@ -42,7 +42,7 @@ certified: true
 ```
 
 ```yaml
-name: net_revenue
+name: net_merchandise_value
 description: >-
   Value of paid orders minus refunds, in EUR. Refunds are attributed to the
   original order's date, not the refund date, so a past quarter's figure can

@@ -80,9 +80,9 @@ FROM read_json_auto('traces.jsonl'), unnest(attributes."kit.guardrail.hits") AS 
 GROUP BY hit;
 ```
 
-## Worked example: `net_revenue` for last quarter
+## Worked example: `net_merchandise_value` for last quarter
 
-The span for the call that produced the [example receipt](receipt.md#worked-example-net_revenue-for-last-quarter). Its IDs and SQL match that receipt.
+The span for the call that produced the [example receipt](receipt.md#worked-example-net_merchandise_value-for-last-quarter). Its IDs and SQL match that receipt.
 
 ```json
 {
@@ -103,7 +103,7 @@ The span for the call that produced the [example receipt](receipt.md#worked-exam
     "gen_ai.operation.name": "execute_tool",
     "gen_ai.tool.name": "query_metric",
     "gen_ai.tool.call.arguments": {
-      "metric": "net_revenue",
+      "metric": "net_merchandise_value",
       "dimensions": [],
       "filters": [],
       "time_grain": "quarter",
@@ -113,12 +113,12 @@ The span for the call that produced the [example receipt](receipt.md#worked-exam
     "mcp.protocol.version": "2025-06-18",
     "network.transport": "pipe",
     "db.system.name": "duckdb",
-    "db.query.text": "SELECT date_trunc('quarter', order_date) AS period, sum(net_amount_eur) AS net_revenue FROM marts.fct_orders WHERE is_paid = TRUE AND order_date >= DATE '2026-07-01' AND order_date < DATE '2026-10-01' GROUP BY period ORDER BY period",
+    "db.query.text": "SELECT date_trunc('quarter', order_date) AS period, sum(net_amount_eur) AS net_merchandise_value FROM marts.fct_orders WHERE is_paid = TRUE AND order_date >= DATE '2026-07-01' AND order_date < DATE '2026-10-01' GROUP BY period ORDER BY period",
     "db.response.returned_rows": 1,
     "kit.persona": "finance_analyst",
     "kit.receipt.id": "rcpt_01JCZ8Q4V6T3M9R2K7H5N1D0WB",
     "kit.result.classification": "certified",
-    "kit.metric.name": "net_revenue",
+    "kit.metric.name": "net_merchandise_value",
     "kit.metric.version": "1.0.0",
     "kit.result.truncated": false,
     "kit.guardrail.hits": [],

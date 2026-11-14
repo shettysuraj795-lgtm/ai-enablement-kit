@@ -60,12 +60,12 @@ A definition is rejected if:
 - `allowed_dimensions` contains a PII column;
 - `certified: true` and no golden eval question references the metric.
 
-## Worked example: `net_revenue`
+## Worked example: `net_merchandise_value`
 
 *Revenue* is ambiguous in the example data. It can be gross or net of refunds, and foreign-currency orders can be converted at the rate on the order date or on the payment date. This definition settles both choices once:
 
 ```yaml
-name: net_revenue
+name: net_merchandise_value
 description: >-
   Value of paid orders minus refunds, in EUR. Refunds are attributed to the
   original order's date, not the refund date, so a past quarter's figure can

@@ -57,9 +57,9 @@ Relative periods are resolved to absolute dates by the server before compiling, 
 
 The proof of concept keeps only the current data snapshot. Keeping older snapshots is a handover item for the warehouse owner.
 
-## Worked example: `net_revenue` for last quarter
+## Worked example: `net_merchandise_value` for last quarter
 
-Asked on 14 Nov 2026 for last quarter's net revenue. Identifiers, timestamps, the figure and the hashes are illustrative.
+Asked on 14 Nov 2026 for last quarter's net merchandise value. Identifiers, timestamps, the figure and the hashes are illustrative.
 
 ```json
 {
@@ -69,7 +69,7 @@ Asked on 14 Nov 2026 for last quarter's net revenue. Identifiers, timestamps, th
   "classification": "certified",
   "source": "metric",
   "intent": {
-    "metric": "net_revenue",
+    "metric": "net_merchandise_value",
     "dimensions": [],
     "filters": [],
     "time_grain": "quarter",
@@ -82,14 +82,14 @@ Asked on 14 Nov 2026 for last quarter's net revenue. Identifiers, timestamps, th
   },
   "metric_version": "1.0.0",
   "compiler_version": "0.1.0",
-  "compiled_sql": "SELECT date_trunc('quarter', order_date) AS period, sum(net_amount_eur) AS net_revenue FROM marts.fct_orders WHERE is_paid = TRUE AND order_date >= DATE '2026-07-01' AND order_date < DATE '2026-10-01' GROUP BY period ORDER BY period",
+  "compiled_sql": "SELECT date_trunc('quarter', order_date) AS period, sum(net_amount_eur) AS net_merchandise_value FROM marts.fct_orders WHERE is_paid = TRUE AND order_date >= DATE '2026-07-01' AND order_date < DATE '2026-10-01' GROUP BY period ORDER BY period",
   "sql_fingerprint": "sha256:5d1f0c7a9e2b4c86f3a1d0e9b7c5a3f1e8d6c4b2a0f9e7d5c3b1a9f8e6d4c2b0",
   "data_snapshot": {
     "snapshot_at": "2026-11-14T06:00:12Z",
     "dbt_invocation_id": "3f6c2a1e-8b7d-4e5f-9a0b-1c2d3e4f5a6b"
   },
   "result": {
-    "columns": ["period", "net_revenue"],
+    "columns": ["period", "net_merchandise_value"],
     "row_count": 1,
     "truncated": false,
     "hash": "sha256:9a4e2c7b1f0d8e6a5c3b2a1f0e9d8c7b6a5f4e3d2c1b0a9f8e7d6c5b4a3f2e1d"
@@ -99,6 +99,6 @@ Asked on 14 Nov 2026 for last quarter's net revenue. Identifiers, timestamps, th
 }
 ```
 
-The canonical result behind that hash would be `[["period","net_revenue"],["2026-07-01","4812337.50"]]`.
+The canonical result behind that hash would be `[["period","net_merchandise_value"],["2026-07-01","4812337.50"]]`.
 
 An `explore_sql` receipt has the same shape with `classification: "exploratory"`, `source: "explore_sql"`, `intent: null` and `metric_version: null`. Its `compiled_sql` is the assistant's SQL after the [GR-02](../../requirements/GR-02-query-allow-list.md) checks.
