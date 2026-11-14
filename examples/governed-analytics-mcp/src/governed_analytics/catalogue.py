@@ -39,7 +39,10 @@ class CatalogueError(ValueError):
 
 
 def load_metric(path: Path) -> Metric:
-    data = yaml.safe_load(path.read_text())
+    return parse_metric(yaml.safe_load(path.read_text()))
+
+
+def parse_metric(data: dict) -> Metric:
     _check_division(data["name"], data["expression"])
     return Metric(
         name=data["name"],

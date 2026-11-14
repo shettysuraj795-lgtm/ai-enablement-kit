@@ -11,7 +11,24 @@ The design note that [`mcp-tool-design`](../../skills/community/mcp-tool-design/
 | `query_metric` | "What was *metric* for *period*, by *dimension*?" | `metric`, `time_grain`, `period` or `start`+`end`, `dimensions`, `filters`, optional `question` | Rows, metric definition and version, `certified`/`exploratory` label, resolved time range, receipt ID, reporting instruction |
 | `explore_sql` | "No metric covers this; can you look it up anyway?" | `sql` (one SELECT over the marts), optional `question` | Rows, the SQL that ran, label always `exploratory`, receipt ID, and an instruction to say it is exploratory and suggest certification if it will be reused |
 
-Planned: `request_certification`. Until then the certification offer is text in `explore_sql`'s reporting instruction, and the trace queries surface candidates. Replay stays a command for BI, not a tool for the model.
+Planned: `request_certification`. Until then the certification offer is text in `explore_sql`'s reporting instruction, and the trace queries surface candidates.
+
+## Replay
+
+`python -m governed_analytics.replay <receipt_id>` is a command for BI, not a tool for the model. It reports two checks separately:
+
+- **Definition:** recompile the intent with the metric at the receipt's version (from git history if the catalogue has moved on), or re-check an `explore_sql` receipt against today's allow-list.
+- **Data:** rerun the stored SQL on the locked-down connection and compare the hash, knowing whether the dbt build is the same.
+
+| Verdict | Meaning | Exit |
+|---|---|---|
+| `reproduced` | Same data, same result | 0 |
+| `unchanged_on_new_data` | The data was rebuilt, the result didn't move | 0 |
+| `data_changed` | The data was rebuilt and the result moved; the receipt records what was seen | 2 |
+| `mismatch` | Same data, different result: investigate | 1 |
+| `definition_changed` | Recompiling no longer gives the stored SQL | 1 |
+
+A check that can't run (an unknown metric version, or a different compiler version) is reported as `skipped`, never as a match.
 
 The glossary lives in `glossary.yml` and a test keeps it in step with the contract. Surfacing the options for "revenue" is the server's job; *acting* on them (asking the user, or naming the choice) is the assistant's, guided by the tool's `next_step` and later the `governed-analytics` skill. Only the first part is a hard control.
 
@@ -43,7 +60,7 @@ Each requirement has its own test file, `tests/test_grNN_*.py`, tagged so that `
 | GR-02 | `explore_sql` checks the parsed tree: one SELECT, `marts.*` or CTEs only, no table, file or SQL-string functions; executes the regenerated SQL | `pytest -m gr02` |
 | GR-03 | At most `row_cap + 1` rows fetched; `con.interrupt()` after `timeout_seconds`; `truncated` flag and `GR-03` span hit | `pytest -m gr03` |
 | GR-04 | PII columns from the dbt manifest; the server refuses to start if a metric exposes one; `explore_sql` blocks PII columns, whole-row references and `*` over PII tables; `question` only in `kit.question`; `governed_analytics.retention` purges it | `pytest -m gr04` |
-| GR-05 | Receipt appended before the result is returned; definition and data both replay | `pytest -m gr05` |
+| GR-05 | Receipt appended before the result is returned; `governed_analytics.replay` checks definition and data | `pytest -m gr05` |
 | GR-06 | Label set from the catalogue's `certified` flag; it agrees in response, receipt and span | `pytest -m gr06` |
 | GR-07 | One span per `tools/call` from the middleware, including schema rejections and unknown tools | `pytest -m gr07` |
 | GR-08 | `governed_analytics.validate`: owner, semver and a golden question for certified metrics; major bump for definition changes since `--base` (CI) | `pytest -m gr08` |

@@ -3,13 +3,9 @@
 from __future__ import annotations
 
 import pytest
-from support import CONFIG, LAST_QUARTER, call_many, make_config, needs_warehouse, read_jsonl
+from support import LAST_QUARTER, call_many, make_config, needs_warehouse, read_jsonl
 
-from governed_analytics.catalogue import load_catalogue
-from governed_analytics.compiler import COMPILER_VERSION, compile_intent
-from governed_analytics.intent import Intent
-from governed_analytics.receipts import render, result_hash
-from governed_analytics.service import connect_read_only
+from governed_analytics.replay import replay
 
 pytestmark = [pytest.mark.gr05, pytest.mark.integration, needs_warehouse]
 
@@ -39,23 +35,12 @@ def test_every_data_response_has_a_stored_receipt(run):
     assert all(set(r) == CONTRACT_FIELDS for r in receipts)
 
 
-def test_receipts_replay_definition_and_data(run):
+def test_every_receipt_replays(run, tmp_path):
+    # The replay command BI would run: definition and data both reproduce.
     _, receipts = run
-    catalogue = load_catalogue()
-    with connect_read_only(CONFIG.warehouse) as con:
-        for receipt in receipts:
-            if receipt["source"] == "metric":
-                # Definition: same intent, metric version and compiler give the same SQL.
-                metric = catalogue[receipt["intent"]["metric"]]
-                assert (metric.version, COMPILER_VERSION) == (receipt["metric_version"], receipt["compiler_version"])
-                assert compile_intent(Intent.from_dict(receipt["intent"]), metric) == receipt["compiled_sql"]
-            else:
-                assert receipt["intent"] is None and receipt["metric_version"] is None
-            # Data: rerunning the SQL on the same snapshot reproduces the hash.
-            cursor = con.execute(receipt["compiled_sql"])
-            columns = [d[0] for d in cursor.description]
-            rows = [[render(v, c) for v, c in zip(row, columns)] for row in cursor.fetchall()]
-            assert result_hash(columns, rows) == receipt["result"]["hash"]
+    for receipt in receipts:
+        report = replay(make_config(tmp_path), receipt)
+        assert (report.definition, report.result, report.verdict) == ("match", "match", "reproduced"), report
 
 
 def test_failed_calls_write_no_receipt(tmp_path):
