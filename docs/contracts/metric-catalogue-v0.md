@@ -22,7 +22,24 @@ Ratios are always a ratio of sums over the period, never an average of per-order
 
 `active_listings` is uncertified on purpose. Whether it should count listings active on *any* day of the period or on the *last* day has not been signed off. Until it is, its results are labelled exploratory ([GR-06](../../requirements/GR-06-certified-vs-exploratory.md)), which also gives the demo a governed but uncertified metric.
 
-### Definitions
+## Glossary
+
+Business teams ask in their own words, and some of those words cover more than one governed metric. The glossary maps each ambiguous term to the metrics it could mean.
+
+| Term people use | Could mean | How they differ |
+|---|---|---|
+| revenue | `gross_merchandise_value` | Everything buyers paid, before refunds |
+| | `net_merchandise_value` | What buyers paid, after refunds |
+| | `commission_revenue` | What the marketplace itself earned: commission after refunded commission |
+| sales | `gross_merchandise_value`, `paid_orders` | Value sold, or number of orders |
+| commission | `commission_revenue`, `take_rate` | An amount in EUR, or a share of sales |
+| listings | `active_listings` | Only one metric, but uncertified (see above) |
+
+**Expected behaviour.** When a question uses an ambiguous term, the `governed-analytics` skill does one of two things. If the question doesn't settle the meaning, it lists the options with the one-line difference and asks the user to choose. If the question does settle it, as in "revenue after refunds", it states which metric it chose and why. It never picks silently.
+
+This is a soft guardrail: a skill asks for it, and the assistant follows it most of the time but not always. The hard backstop is that every result shows its metric name and description ([metric definition contract](metric-definition.md)), so a wrong choice is visible even when the skill is not followed. The golden evals include the plain question "What was revenue last quarter?" and pass only if the answer lists the options or names the metric it chose.
+
+## Definitions
 
 ```yaml
 name: gross_merchandise_value
