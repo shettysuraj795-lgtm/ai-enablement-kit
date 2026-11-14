@@ -36,9 +36,9 @@ The user's natural-language question is never stored in a receipt. Receipts are 
 | `dimensions` | list of strings | Group-by columns; each must be in the metric's `allowed_dimensions`. Empty for a single total. |
 | `filters` | list | User filters, in the [filter shape](metric-definition.md#filter-shape). Fixed metric filters are not repeated here; they are in the metric version. |
 | `time_grain` | string | One of the metric's `time_grains`. |
-| `time_range` | object | `start` and `end` as ISO dates, half-open (`start` inclusive, `end` exclusive). If the request used a relative period, `relative` keeps it (for example `last_quarter`) and `resolved_on` records the date it was resolved against. |
+| `time_range` | object | Always contains `start`, `end` and `as_of`. `start` and `end` are the resolved absolute range as ISO dates, half-open (`start` inclusive, `end` exclusive). `as_of` is the date, in UTC, that the request was evaluated on. `relative` is added when the request used a relative period, for example `last_quarter`. |
 
-Relative periods are resolved to absolute dates by the server before compiling, so the SQL never contains `current_date`.
+Relative periods are resolved to absolute dates by the server before compiling, so the SQL never contains `current_date`. `as_of` is recorded even when the request gave absolute dates, so every receipt answers "asked on which day, about which days". It is a different thing from `data_snapshot.snapshot_at`, which says how fresh the data was.
 
 ### Result hash
 
@@ -76,8 +76,8 @@ Asked on 14 Nov 2026 for last quarter's net revenue. Identifiers, timestamps, th
     "time_range": {
       "start": "2026-07-01",
       "end": "2026-10-01",
-      "relative": "last_quarter",
-      "resolved_on": "2026-11-14"
+      "as_of": "2026-11-14",
+      "relative": "last_quarter"
     }
   },
   "metric_version": "1.0.0",
