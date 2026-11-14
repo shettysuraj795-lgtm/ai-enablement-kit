@@ -45,7 +45,7 @@ def test_lists_intent_tools_with_catalogue_enums(config):
             return await client.list_tools()
 
     tools = {t.name: t for t in asyncio.run(go()).tools}
-    assert sorted(tools) == ["describe_metric", "list_metrics", "query_metric"]
+    assert sorted(tools) == ["describe_metric", "explore_sql", "list_metrics", "query_metric"]
     schema = json.dumps(tools["query_metric"].input_schema)
     assert "net_merchandise_value" in schema and "last_quarter" in schema and "dealer_region" in schema
 

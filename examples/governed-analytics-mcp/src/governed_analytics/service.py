@@ -16,10 +16,11 @@ from typing import Any
 
 import duckdb
 
-from governed_analytics import receipts, tracing
+from governed_analytics import allowlist, receipts, tracing
 from governed_analytics.catalogue import GlossaryOption, Metric
 from governed_analytics.compiler import COMPILER_VERSION, IntentError, compile_intent
 from governed_analytics.intent import Filter, Intent, TimeRange
+from governed_analytics.manifest import Manifest
 from governed_analytics.periods import RELATIVE_PERIODS, resolve
 
 EXAMPLE_DIR = Path(__file__).resolve().parents[2]
@@ -69,10 +70,12 @@ class QueryService:
         config: Config,
         catalogue: dict[str, Metric],
         glossary: dict[str, tuple[GlossaryOption, ...]] | None = None,
+        manifest: Manifest | None = None,
     ):
         self.config = config
         self.catalogue = catalogue
         self.glossary = glossary or {}
+        self.manifest = manifest
 
     def list_metrics(self, term: str | None = None) -> dict[str, Any]:
         """The catalogue, or the governed options for one ambiguous term."""
@@ -146,41 +149,11 @@ class QueryService:
         except IntentError as e:
             raise QueryError(str(e), "invalid_intent") from e
 
-        snapshot = receipts.data_snapshot(self.config.dbt_target)
-        columns, rows, truncated = self.execute(sql)
         classification = "certified" if definition.certified else "exploratory"  # GR-06
-        result_hash = receipts.result_hash(columns, rows)
-        trace_id, span_id = tracing.current_ids()
-
-        receipt = {
-            "schema_version": receipts.SCHEMA_VERSION,
-            "receipt_id": receipts.new_receipt_id(),
-            "created_at": dt.datetime.now(dt.UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z"),
-            "classification": classification,
-            "source": "metric",
-            "intent": _intent_record(intent),
-            "metric_version": definition.version,
-            "compiler_version": COMPILER_VERSION,
-            "compiled_sql": sql,
-            "sql_fingerprint": receipts.sql_fingerprint(sql),
-            "data_snapshot": snapshot,
-            "result": {"columns": columns, "row_count": len(rows), "truncated": truncated, "hash": result_hash},
-            "trace_id": trace_id,
-            "span_id": span_id,
-        }
-        receipts.append(self.config.log_dir / "receipts.jsonl", receipt)  # GR-05: before returning
-        tracing.annotate(
-            **{
-                "db.system.name": "duckdb",
-                "db.query.text": sql,
-                "db.response.returned_rows": len(rows),
-                "kit.receipt.id": receipt["receipt_id"],
-                "kit.result.classification": classification,
-                "kit.metric.name": definition.name,
-                "kit.metric.version": definition.version,
-                "kit.result.truncated": truncated,
-            }
-        )
+        receipt, rows = self._run_with_receipt(sql, classification, "metric", _intent_record(intent), definition.version)
+        tracing.annotate(**{"kit.metric.name": definition.name, "kit.metric.version": definition.version})
+        truncated = receipt["result"]["truncated"]
+        columns = receipt["result"]["columns"]
         return {
             "classification": classification,
             "metric": {
@@ -201,6 +174,73 @@ class QueryService:
                 + (f" Only the first {len(rows)} rows are shown." if truncated else "")
             ),
         }
+
+    def explore_sql(self, sql: str) -> dict[str, Any]:
+        """The escape hatch: checked against the allow-list, always exploratory, always receipted."""
+        if self.manifest is None:
+            raise QueryError("Exploratory SQL is not available: the server has no dbt manifest.", "internal")
+        try:
+            checked = allowlist.check(sql, self.manifest)
+        except allowlist.SqlRejected as e:
+            tracing.guardrail_hit(e.requirement)
+            raise QueryError(str(e), "guardrail_blocked") from e
+
+        receipt, rows = self._run_with_receipt(checked.sql, "exploratory", "explore_sql", None, None)  # GR-06
+        truncated = receipt["result"]["truncated"]
+        return {
+            "classification": "exploratory",
+            "sql": checked.sql,
+            "columns": receipt["result"]["columns"],
+            "rows": rows,
+            "truncated": truncated,
+            "receipt_id": receipt["receipt_id"],
+            "how_to_report": (
+                "Say plainly that this is an exploratory result, not a certified metric, and quote receipt "
+                f"{receipt['receipt_id']}. If the user will rely on it again, suggest asking BI to certify a "
+                "metric for it." + (f" Only the first {len(rows)} rows are shown." if truncated else "")
+            ),
+        }
+
+    def _run_with_receipt(
+        self, sql: str, classification: str, source: str, intent: dict | None, metric_version: str | None
+    ) -> tuple[dict[str, Any], list[list[str | None]]]:
+        """Execute, write the receipt before returning (GR-05) and annotate the span."""
+        snapshot = receipts.data_snapshot(self.config.dbt_target)
+        columns, rows, truncated = self.execute(sql)
+        trace_id, span_id = tracing.current_ids()
+        receipt = {
+            "schema_version": receipts.SCHEMA_VERSION,
+            "receipt_id": receipts.new_receipt_id(),
+            "created_at": dt.datetime.now(dt.UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z"),
+            "classification": classification,
+            "source": source,
+            "intent": intent,
+            "metric_version": metric_version,
+            "compiler_version": COMPILER_VERSION,
+            "compiled_sql": sql,
+            "sql_fingerprint": receipts.sql_fingerprint(sql),
+            "data_snapshot": snapshot,
+            "result": {
+                "columns": columns,
+                "row_count": len(rows),
+                "truncated": truncated,
+                "hash": receipts.result_hash(columns, rows),
+            },
+            "trace_id": trace_id,
+            "span_id": span_id,
+        }
+        receipts.append(self.config.log_dir / "receipts.jsonl", receipt)
+        tracing.annotate(
+            **{
+                "db.system.name": "duckdb",
+                "db.query.text": sql,
+                "db.response.returned_rows": len(rows),
+                "kit.receipt.id": receipt["receipt_id"],
+                "kit.result.classification": classification,
+                "kit.result.truncated": truncated,
+            }
+        )
+        return receipt, rows
 
     def _time_range(self, period: str | None, start: dt.date | None, end: dt.date | None) -> TimeRange:
         today = self.config.today()

@@ -94,3 +94,40 @@ def test_retention_removes_old_questions_only(tmp_path):
     assert purged == 1
     assert "kit.question" not in old["attributes"] and new["attributes"]["kit.question"] == "new"
     assert old["attributes"]["kit.receipt.id"] == spans[0]["attributes"]["kit.receipt.id"]  # rest kept
+
+
+PII_QUERIES = {
+    "direct": "SELECT buyer_id FROM marts.fct_orders",
+    "quoted_upper_case": 'SELECT "BUYER_ID" FROM marts.fct_orders',
+    "aggregate": "SELECT count(DISTINCT buyer_id) FROM marts.fct_orders",
+    "filter": "SELECT count(*) FROM marts.fct_orders WHERE buyer_id = 'B-00042'",
+    "star": "SELECT * FROM marts.fct_orders",
+    "qualified_star": "SELECT o.* FROM marts.fct_orders o",
+    "star_exclude": "SELECT * EXCLUDE (buyer_id) FROM marts.fct_orders",
+    "star_in_cte": "WITH t AS (SELECT * FROM marts.fct_orders) SELECT count(*) FROM t",
+    "renamed_in_cte": "WITH t AS (SELECT buyer_id AS b FROM marts.fct_orders) SELECT b FROM t",
+    "whole_row": "SELECT o FROM marts.fct_orders o",
+    "whole_row_to_json": "SELECT to_json(fct_orders) FROM marts.fct_orders",
+    "columns_regex": "SELECT COLUMNS('buy.*') FROM marts.fct_orders",
+}
+
+
+@pytest.mark.parametrize("name", sorted(PII_QUERIES))
+def test_explore_sql_never_touches_pii(tmp_path, name):
+    [result] = call_many(make_config(tmp_path), [("explore_sql", {"sql": PII_QUERIES[name]})])
+    assert result.is_error
+    [span] = read_jsonl(tmp_path / "traces.jsonl")
+    assert span["attributes"]["kit.guardrail.hits"] in (["GR-04"], ["GR-02"])
+    assert read_jsonl(tmp_path / "receipts.jsonl") == []
+
+
+def test_explore_sql_description_hides_pii_columns(tmp_path):
+    from mcp import Client
+    import asyncio
+
+    async def go():
+        async with Client(build_server(make_config(tmp_path))) as client:
+            return {t.name: t for t in (await client.list_tools()).tools}
+
+    description = asyncio.run(go())["explore_sql"].description
+    assert "marts.fct_orders" in description and "buyer_id" not in description

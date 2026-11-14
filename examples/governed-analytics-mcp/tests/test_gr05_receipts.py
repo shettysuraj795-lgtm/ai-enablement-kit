@@ -18,6 +18,7 @@ DATA_CALLS = [
     ("query_metric", {**LAST_QUARTER, "dimensions": ["dealer_tier"], "filters": [{"column": "dealer_region", "op": "in", "value": ["DE", "AT"]}]}),
     ("query_metric", {"metric": "take_rate", "time_grain": "month", "period": "last_quarter"}),
     ("query_metric", {"metric": "active_listings", "time_grain": "week", "period": "last_4_weeks"}),
+    ("explore_sql", {"sql": "SELECT dealer_tier, count(*) AS orders FROM marts.fct_orders GROUP BY 1 ORDER BY 1"}),
 ]
 CONTRACT_FIELDS = {
     "schema_version", "receipt_id", "created_at", "classification", "source", "intent", "metric_version",
@@ -43,10 +44,13 @@ def test_receipts_replay_definition_and_data(run):
     catalogue = load_catalogue()
     with connect_read_only(CONFIG.warehouse) as con:
         for receipt in receipts:
-            # Definition: same intent, metric version and compiler give the same SQL.
-            metric = catalogue[receipt["intent"]["metric"]]
-            assert (metric.version, COMPILER_VERSION) == (receipt["metric_version"], receipt["compiler_version"])
-            assert compile_intent(Intent.from_dict(receipt["intent"]), metric) == receipt["compiled_sql"]
+            if receipt["source"] == "metric":
+                # Definition: same intent, metric version and compiler give the same SQL.
+                metric = catalogue[receipt["intent"]["metric"]]
+                assert (metric.version, COMPILER_VERSION) == (receipt["metric_version"], receipt["compiler_version"])
+                assert compile_intent(Intent.from_dict(receipt["intent"]), metric) == receipt["compiled_sql"]
+            else:
+                assert receipt["intent"] is None and receipt["metric_version"] is None
             # Data: rerunning the SQL on the same snapshot reproduces the hash.
             cursor = con.execute(receipt["compiled_sql"])
             columns = [d[0] for d in cursor.description]

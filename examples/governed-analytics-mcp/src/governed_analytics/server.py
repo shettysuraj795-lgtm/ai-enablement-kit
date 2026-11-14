@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field
 
 from governed_analytics.catalogue import CatalogueError, Metric, load_catalogue, load_glossary
 from governed_analytics.intent import OPS
-from governed_analytics.manifest import load_manifest
+from governed_analytics.manifest import Manifest, load_manifest
 from governed_analytics.periods import RELATIVE_PERIODS
 from governed_analytics.service import Config, QueryError, QueryService
 from governed_analytics.tracing import TraceMiddleware
@@ -35,10 +35,11 @@ INSTRUCTIONS = (
 
 def build_server(config: Config, catalogue: dict[str, Metric] | None = None) -> MCPServer:
     catalogue = catalogue or load_catalogue()
-    problems = against_manifest(catalogue, load_manifest(config.dbt_target))
+    manifest = load_manifest(config.dbt_target)
+    problems = against_manifest(catalogue, manifest)
     if problems:  # e.g. a PII column exposed as a dimension (GR-04): refuse to serve
         raise CatalogueError("Catalogue does not match the dbt marts:\n" + "\n".join(problems))
-    service = QueryService(config, catalogue, load_glossary(catalogue))
+    service = QueryService(config, catalogue, load_glossary(catalogue), manifest)
     server = MCPServer(
         name="governed-analytics",
         version=VERSION,
@@ -116,7 +117,38 @@ def build_server(config: Config, catalogue: dict[str, Metric] | None = None) -> 
         except QueryError as e:
             raise ToolError(str(e)) from e  # an is_error result the model can act on (step 5)
 
+    # The escape hatch (mcp-tool-design step 8): guarded, labelled, receipted, never silent.
+    @server.tool(name="explore_sql", description=_describe_explore(manifest))
+    async def explore_sql(
+        sql: Annotated[str, Field(description="One DuckDB SELECT over the marts listed above.")],
+        question: Annotated[
+            str | None,
+            Field(description="The user's question in your words. Logged briefly to find metrics worth certifying."),
+        ] = None,
+    ) -> dict[str, Any]:
+        try:
+            return await anyio.to_thread.run_sync(lambda: service.explore_sql(sql))
+        except QueryError as e:
+            raise ToolError(str(e)) from e
+
     return server
+
+
+def _describe_explore(manifest: Manifest) -> str:
+    lines = [
+        "Answer a data question that no governed metric covers, with your own read-only SQL. Use "
+        "list_metrics first: if a governed metric fits, use query_metric instead. Results are always "
+        "labelled exploratory and get a receipt; say so to the user.",
+        "",
+        "Rules: one SELECT (CTEs and joins are fine), only the marts below, no table functions or file "
+        "access, no personal-data columns, and no SELECT * on a table that has them. Results are capped.",
+        "",
+        "Marts and their columns:",
+    ]
+    for model in sorted(manifest.columns):
+        columns = sorted(manifest.columns[model] - manifest.pii[model])
+        lines.append(f"- marts.{model}: {', '.join(columns)}")
+    return "\n".join(lines)
 
 
 def _describe(catalogue: dict[str, Metric]) -> str:

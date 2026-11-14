@@ -4,6 +4,9 @@ Every change to a requirement's wording is recorded here, newest first. A change
 
 ## 14 Nov 2026
 
+- **GR-02 (Exploratory SQL is limited to an allow-list), *Enforced by*.** It now says the server executes the SQL regenerated from the checked tree.
+  - **Why:** if the server checks one string and runs another, any difference between how sqlglot and DuckDB parse it becomes a bypass. Running the regenerated SQL removes that gap.
+  - **Reports made stale:** none.
 - **GR-01 (Data access is read-only), *Enforced by*.** It now says the connection also has external file and network access switched off.
   - **Why:** the first GR-01 tests showed that a read-only DuckDB connection still allows `COPY ... TO` a file, `read_csv` and `INSTALL`. That breaks "no tool can create files" as soon as raw SQL is accepted. The requirement is unchanged; the control is stronger.
   - **Reports made stale:** none.

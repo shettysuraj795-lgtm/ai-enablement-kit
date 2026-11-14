@@ -9,8 +9,9 @@ The design note that [`mcp-tool-design`](../../skills/community/mcp-tool-design/
 | `list_metrics` | "What can I ask about?" / "What could *revenue* mean?" | optional `term` | The catalogue and glossary; with a known `term`, its governed options, their meanings and the next step (ask, or name the choice) |
 | `describe_metric` | "What exactly does *metric* mean?" | `metric` | Definition, unit, version, certified flag, owner, grains, dimensions, filters always applied, glossary terms that lead to it |
 | `query_metric` | "What was *metric* for *period*, by *dimension*?" | `metric`, `time_grain`, `period` or `start`+`end`, `dimensions`, `filters`, optional `question` | Rows, metric definition and version, `certified`/`exploratory` label, resolved time range, receipt ID, reporting instruction |
+| `explore_sql` | "No metric covers this; can you look it up anyway?" | `sql` (one SELECT over the marts), optional `question` | Rows, the SQL that ran, label always `exploratory`, receipt ID, and an instruction to say it is exploratory and suggest certification if it will be reused |
 
-Planned next: `explore_sql` (the guarded escape hatch, step 8) and `request_certification`. Replay stays a command for BI, not a tool for the model.
+Planned: `request_certification`. Until then the certification offer is text in `explore_sql`'s reporting instruction, and the trace queries surface candidates. Replay stays a command for BI, not a tool for the model.
 
 The glossary lives in `glossary.yml` and a test keeps it in step with the contract. Surfacing the options for "revenue" is the server's job; *acting* on them (asking the user, or naming the choice) is the assistant's, guided by the tool's `next_step` and later the `governed-analytics` skill. Only the first part is a hard control.
 
@@ -29,7 +30,7 @@ All seven metrics from [metric catalogue v0](../../docs/contracts/metric-catalog
 | 5. Errors as guidance | Compiler and service errors become `is_error` results that name the valid options; schema rejections list the allowed values | `compiler.py`, `service.py` |
 | 6. Least privilege | Read-only DuckDB connection; marts schema only; row cap and timeout; PII columns can't be named because they aren't in any enum | `service.py`, `catalogue` |
 | 7. Trace every call | MCP middleware wraps the dispatcher, so schema rejections are traced too; tools only annotate the span | `tracing.py` |
-| 8. Guarded escape hatch | Not in this slice (see *Tools*) | |
+| 8. Guarded escape hatch | `explore_sql`: a sqlglot allow-list on the parsed tree, running the regenerated SQL on the locked-down connection; always exploratory and receipted ([ADR-007](../../docs/adr/007-exploratory-sql-defence-in-depth.md)). Its description lists the marts and their non-PII columns | `allowlist.py`, `service.py` |
 | 9. Hand-off line | See *Hand-off* | |
 
 ## Guardrails
@@ -39,9 +40,9 @@ Each requirement has its own test file, `tests/test_grNN_*.py`, tagged so that `
 | ID | Control in this server | Evidence |
 |---|---|---|
 | GR-01 | `connect_read_only`: `read_only=True` and `enable_external_access=False` (read-only alone still allows `COPY ... TO`) | `pytest -m gr01` |
-| GR-02 | No raw SQL on the governed path; `explore_sql` will carry the allow-list | Added with `explore_sql` |
+| GR-02 | `explore_sql` checks the parsed tree: one SELECT, `marts.*` or CTEs only, no table, file or SQL-string functions; executes the regenerated SQL | `pytest -m gr02` |
 | GR-03 | At most `row_cap + 1` rows fetched; `con.interrupt()` after `timeout_seconds`; `truncated` flag and `GR-03` span hit | `pytest -m gr03` |
-| GR-04 | PII columns from the dbt manifest; the server refuses to start if a metric exposes one; `question` only in `kit.question`; `governed_analytics.retention` purges it | `pytest -m gr04` |
+| GR-04 | PII columns from the dbt manifest; the server refuses to start if a metric exposes one; `explore_sql` blocks PII columns, whole-row references and `*` over PII tables; `question` only in `kit.question`; `governed_analytics.retention` purges it | `pytest -m gr04` |
 | GR-05 | Receipt appended before the result is returned; definition and data both replay | `pytest -m gr05` |
 | GR-06 | Label set from the catalogue's `certified` flag; it agrees in response, receipt and span | `pytest -m gr06` |
 | GR-07 | One span per `tools/call` from the middleware, including schema rejections and unknown tools | `pytest -m gr07` |
@@ -59,6 +60,9 @@ Each requirement has its own test file, `tests/test_grNN_*.py`, tagged so that `
 | `KIT_ROW_CAP`, `KIT_TIMEOUT_SECONDS` | `1000`, `30` | GR-03 limits |
 
 ## Known limits
+
+- `explore_sql` blocks aggregates over PII too (for example `count(DISTINCT buyer_id)`). A buyer count needs a governed metric.
+- The function blocklist must grow when DuckDB adds file-reading functions. The connection's disabled external access is the backstop.
 
 - The data snapshot comes from the latest `run_results.json`, so `dbt docs generate` changes `dbt_invocation_id` without changing the data. A production version would stamp the snapshot into the warehouse during the build.
 - Receipts and traces are local append-only files for one user over stdio. Shared storage is a hand-off item.

@@ -46,8 +46,10 @@ def test_injection_through_tools_changes_nothing(tmp_path):
         for p in payloads
     ]
     calls.append(("describe_metric", {"metric": "net_merchandise_value; DROP TABLE marts.fct_orders"}))
+    calls += [("explore_sql", {"sql": WRITES[name].format(tmp=tmp_path)}) for name in sorted(WRITES)]
     results = call_many(config, calls)
 
     assert all(r.is_error or r.structured_content["rows"] == [] for r in results)
+    assert all(r.is_error for r in results[-len(WRITES):])  # every raw write refused
     assert checksum(config.warehouse) == before
     assert not (tmp_path / "leak.csv").exists()
