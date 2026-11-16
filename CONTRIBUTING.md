@@ -36,6 +36,10 @@ A community skill becomes certified when it meets all three of these:
 
 To promote, open a pull request that moves the folder from `community/` to `certified/` and links the passing eval run or the evidence of use. The code owners approve or decline it, and they give a reason if they decline.
 
+## Single maintainer
+
+[`.github/CODEOWNERS`](.github/CODEOWNERS) names the maintainer as the owner of `skills/certified/` and `requirements/`. This is a single-maintainer repository, so "code owners must approve" means the maintainer's review. The pull request still records the evidence and the reason for the decision. When a receiving team takes on a requirement or a certified skill, add that team to `CODEOWNERS` for its path.
+
 ## Staying certified
 
 A certified skill is moved back to `community/` if any of these happen:

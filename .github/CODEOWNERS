@@ -1,0 +1,4 @@
+# Certified skills and hard guardrails need the code owner's approval.
+# This is a single-maintainer repository: see CONTRIBUTING.md#single-maintainer.
+/skills/certified/ @shettysuraj795-lgtm
+/requirements/     @shettysuraj795-lgtm
