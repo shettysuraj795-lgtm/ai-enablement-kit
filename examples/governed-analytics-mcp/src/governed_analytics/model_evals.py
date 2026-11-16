@@ -33,7 +33,16 @@ from typing import Any
 import yaml
 
 from governed_analytics.catalogue import load_catalogue
-from governed_analytics.model_judge import CHECKS, RUNS_TO_PASS, find_key, judge, needs_model
+from governed_analytics.model_judge import (
+    CHECKS,
+    RUNS_TO_PASS,
+    asks_about_certification,
+    certification_statements,
+    final_reply,
+    find_key,
+    judge,
+    needs_model,
+)
 from governed_analytics.service import EXAMPLE_DIR, Config
 
 GOLDEN = EXAMPLE_DIR / "evals" / "golden_questions.yml"
@@ -294,9 +303,17 @@ def render_results(model_dir: Path, golden: dict, certified: set[str]) -> str:
     if not transcripts:
         raise Stop(f"No transcripts in {model_dir}.")
     questions = {q["id"]: q for q in golden["questions"]}
-    verdicts: dict[tuple[str, str], list[tuple[int, Any]]] = defaultdict(list)
+    verdicts: dict[tuple[str, str, str], list[tuple[int, Any]]] = defaultdict(list)
+    replies: dict[tuple[str, str, int], str] = {}
     for t in transcripts:
-        verdicts[(t["question_id"], t["condition"])].append((t["run"], judge(questions[t["question_id"]], t, certified)))
+        for name, v in judge(questions[t["question_id"]], t, certified).items():
+            verdicts[(t["question_id"], name, t["condition"])].append((t["run"], v))
+        replies[(t["question_id"], t["condition"], t["run"])] = final_reply(t)
+
+    def cell(key: tuple[str, str, str]) -> tuple[str, bool]:
+        passed = sum(v.passed for _, v in verdicts[key])
+        ok = passed >= RUNS_TO_PASS
+        return f"{passed}/{len(verdicts[key])} {'pass' if ok else 'fail'}", ok
 
     first = transcripts[0]
     commits = sorted({t["commit"] for t in transcripts})
@@ -313,24 +330,27 @@ def render_results(model_dir: Path, golden: dict, certified: set[str]) -> str:
         "| Question | Check | Without skill | With skill |",
         "|---|---|---|---|",
     ]
-    totals = dict.fromkeys(CONDITIONS, 0)
     ids = sorted({t["question_id"] for t in transcripts})
-    for qid in ids:
+    rows = [(qid, name) for qid in ids for name in CHECKS[questions[qid]["kind"]]]
+    totals = dict.fromkeys(CONDITIONS, 0)
+    for qid, name in rows:
         cells = []
         for condition in CONDITIONS:
-            passed = sum(v.passed for _, v in verdicts[(qid, condition)])
-            ok = passed >= RUNS_TO_PASS
+            text, ok = cell((qid, name, condition))
             totals[condition] += ok
-            cells.append(f"{passed}/{len(verdicts[(qid, condition)])} {'pass' if ok else 'fail'}")
-        q = questions[qid]
-        lines.append(f"| {qid} \"{q['question']}\" | {CHECKS[q['kind']]} | {cells[0]} | {cells[1]} |")
-    lines.append(f"| **Checks passed** | | **{totals['without_skill']} of {len(ids)}** | **{totals['with_skill']} of {len(ids)}** |")
+            cells.append(text)
+        lines.append(f"| {qid} \"{questions[qid]['question']}\" | {name} | {cells[0]} | {cells[1]} |")
+    lines.append(f"| **Checks passed** | | **{totals['without_skill']} of {len(rows)}** | **{totals['with_skill']} of {len(rows)}** |")
+
+    uncovered = [qid for qid in ids if questions[qid]["kind"] == "uncovered"]
+    if uncovered:
+        lines += _revision(uncovered, cell, replies, totals, len(rows))
 
     failures = [
-        f"- {qid}, {condition.replace('_', ' ')}, run {n}: {'; '.join(v.reasons)}"
-        for qid in ids
+        f"- {qid}, {name}, {condition.replace('_', ' ')}, run {n}: {'; '.join(v.reasons)}"
+        for qid, name in rows
         for condition in CONDITIONS
-        for n, v in sorted(verdicts[(qid, condition)])
+        for n, v in sorted(verdicts[(qid, name, condition)])
         if not v.passed
     ]
     lines += ["", "## Why runs failed", ""] + (failures or ["No run failed."])
@@ -341,6 +361,44 @@ def render_results(model_dir: Path, golden: dict, certified: set[str]) -> str:
         "",
     ]
     return "\n".join(lines)
+
+
+def _revision(uncovered: list[str], cell, replies: dict, totals: dict, n_checks: int) -> list[str]:
+    """The record of the 16 Nov 2026 rule revision, with the original result beside the revised one."""
+    lines = [
+        "",
+        "## Rule revision, 16 Nov 2026",
+        "",
+        "GQ-15 first had one check, *says exploratory and offers certification*, which counted an offer only when it "
+        "was phrased as a question. Reading the first transcripts showed that every run mentioned certification, "
+        "and that the runs it failed offered it as a statement instead. The check was split in two after reading "
+        "the transcripts: **offers certification** also counts a statement that the assistant can request or ask "
+        "for certification; **asks directly** is the original rule, unchanged. The same transcripts were re-judged; "
+        "the model was not re-run ([ADR-008](../../../../../docs/adr/008-model-in-the-loop-evals.md#revision)).",
+        "",
+        "| Rule | Without skill | With skill |",
+        "|---|---|---|",
+    ]
+    for qid in uncovered:
+        for label, name in (("Original: one check, offer must be a question", "asks directly"),
+                            ("Revised: offers certification", "offers certification"),
+                            ("Revised: asks directly", "asks directly")):
+            cells = [cell((qid, name, c))[0] for c in CONDITIONS]
+            lines.append(f"| {qid} {label} | {cells[0]} | {cells[1]} |")
+    # "asks directly" is the original rule, so the original totals lack only the new checks.
+    old = {c: totals[c] - sum(cell((qid, "offers certification", c))[1] for qid in uncovered) for c in CONDITIONS}
+    n_old = n_checks - len(uncovered)
+    lines += ["", f"All checks passed: originally {old['without_skill']} of {n_old} without the skill and "
+                  f"{old['with_skill']} of {n_old} with it; after the revision {totals['without_skill']} of "
+                  f"{n_checks} and {totals['with_skill']} of {n_checks}."]
+    quotes = [
+        f"- {qid}, {condition.replace('_', ' ')}, run {n}: \"{' '.join(certification_statements(reply))}\""
+        for (qid, condition, n), reply in sorted(replies.items())
+        if qid in uncovered and certification_statements(reply) and not asks_about_certification(reply)
+    ]
+    if quotes:
+        lines += ["", "The statements the original rule failed:", ""] + quotes
+    return lines
 
 
 def check(out_dir: Path = OUT_DIR, config: Config | None = None) -> int:

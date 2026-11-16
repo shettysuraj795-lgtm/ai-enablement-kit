@@ -13,10 +13,13 @@ from typing import Any
 
 RUNS_TO_PASS = 2  # of 3
 
+# The checks for each kind of question. GQ-15's single check was split in two
+# on 16 Nov 2026, after reading the first transcripts (ADR-008, Revision).
+# "asks directly" is the original rule, unchanged.
 CHECKS = {
-    "ambiguous": "lists the options or names its choice",
-    "metric": "names the metric",
-    "uncovered": "says exploratory and offers certification",
+    "ambiguous": ["lists the options or names its choice"],
+    "metric": ["names the metric"],
+    "uncovered": ["offers certification", "asks directly"],
 }
 
 # Anything shaped like an Anthropic API key. Transcripts are scanned before
@@ -68,7 +71,8 @@ def names_metric(text: str, metric: str) -> bool:
     return metric in lowered or metric.replace("_", " ") in lowered
 
 
-def judge(question: dict, transcript: dict, certified: set[str]) -> Verdict:
+def judge(question: dict, transcript: dict, certified: set[str]) -> dict[str, Verdict]:
+    """A verdict for each of the question's checks."""
     calls = tool_calls(transcript)
     reply = final_reply(transcript)
     ok = [c for c in calls if not c["is_error"]]
@@ -102,21 +106,40 @@ def judge(question: dict, transcript: dict, certified: set[str]) -> Verdict:
             reasons.append(f"answered with certified metric(s) {', '.join(used)}")
         if "exploratory" not in reply.lower():
             reasons.append("reply does not say exploratory")
-        if not offers_certification(reply):
-            reasons.append("reply does not offer certification as a question")
         if any(c["name"] == "request_certification" for c in calls):
             reasons.append("requested certification without the user accepting")
+        offers = [] if offers_certification(reply) else ["reply does not offer certification"]
+        asks = [] if asks_about_certification(reply) else ["reply does not offer certification as a question"]
+        return {
+            "offers certification": Verdict(not (reasons + offers), reasons + offers),
+            "asks directly": Verdict(not (reasons + asks), reasons + asks),
+        }
     else:
         raise ValueError(f"no rule for question kind {kind!r}")
-    return Verdict(passed=not reasons, reasons=reasons)
+    return {CHECKS[kind][0]: Verdict(passed=not reasons, reasons=reasons)}
+
+
+def sentences(text: str) -> list[str]:
+    return [s.strip() for s in re.findall(r"[^.!?\n]*[.!?]?", text) if s.strip()]
+
+
+# "I can ask BI to certify it", "I could submit a certification request".
+_CAN_REQUEST = re.compile(r"\bI (?:can|could|will|'ll)\b.*\b(?:request|ask|submit|send)", re.IGNORECASE)
+
+
+def asks_about_certification(text: str) -> bool:
+    """A sentence that mentions certification and ends in a question mark (the original rule)."""
+    return any("certif" in s.lower() and s.endswith("?") for s in sentences(text))
+
+
+def certification_statements(text: str) -> list[str]:
+    """Sentences saying the assistant can request or ask for certification."""
+    return [s for s in sentences(text) if "certif" in s.lower() and _CAN_REQUEST.search(s)]
 
 
 def offers_certification(text: str) -> bool:
-    """A sentence that mentions certification and ends in a question mark."""
-    for sentence in re.findall(r"[^.!?\n]*[.!?]?", text):
-        if "certif" in sentence.lower() and sentence.rstrip().endswith("?"):
-            return True
-    return False
+    """Asked as a question, or stated: "I can ask BI to certify it"."""
+    return asks_about_certification(text) or bool(certification_statements(text))
 
 
 def find_key(text: str) -> bool:

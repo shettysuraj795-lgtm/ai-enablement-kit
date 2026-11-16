@@ -9,7 +9,7 @@ import yaml
 
 from governed_analytics import model_evals
 from governed_analytics.model_evals import GOLDEN, Stop, check, cost, is_billing_error, render_results, write_transcript
-from governed_analytics.model_judge import judge, needs_model, offers_certification
+from governed_analytics.model_judge import asks_about_certification, judge, needs_model, offers_certification
 from support import needs_warehouse
 
 QUESTIONS = {q["id"]: q for q in yaml.safe_load(GOLDEN.read_text())["questions"]}
@@ -26,8 +26,13 @@ def transcript(calls: list[tuple[str, dict]], reply: str, stop_reason: str = "en
     return {"messages": messages, "stop_reason": stop_reason}
 
 
-def verdict(qid: str, t: dict):
-    return judge(QUESTIONS[qid], t, CERTIFIED)
+def verdict(qid: str, t: dict, check: str | None = None):
+    """The verdict for `check`, or for the question's only check."""
+    verdicts = judge(QUESTIONS[qid], t, CERTIFIED)
+    if check is None:
+        [only] = verdicts.values()
+        return only
+    return verdicts[check]
 
 
 def test_selects_the_four_needs_model_questions():
@@ -85,43 +90,70 @@ def test_metric_fails_when_the_query_errored():
 
 EXPLORE = ("explore_sql", {"sql": "SELECT 1"})
 OFFER = "This is an exploratory result: about 23 days. Shall I ask BI to certify a metric for it?"
+STATEMENT = "This is an exploratory result: about 23 days. I can ask BI to consider certifying it."
+BOTH = ("offers certification", "asks directly")
 
 
-def test_uncovered_passes_with_exploratory_answer_and_offer():
-    assert verdict("GQ-15", transcript([("list_metrics", {}), EXPLORE], OFFER)).passed
+def test_uncovered_has_two_checks():
+    assert sorted(judge(QUESTIONS["GQ-15"], transcript([EXPLORE], OFFER), CERTIFIED)) == sorted(BOTH)
 
 
-def test_uncovered_fails_when_the_offer_is_not_a_question():
-    reply = "This is an exploratory result: about 23 days. BI can certify a metric for it."
-    assert verdict("GQ-15", transcript([EXPLORE], reply)).reasons == ["reply does not offer certification as a question"]
+def test_a_question_passes_both_checks():
+    t = transcript([("list_metrics", {}), EXPLORE], OFFER)
+    assert all(verdict("GQ-15", t, check).passed for check in BOTH)
 
 
-def test_uncovered_fails_when_it_requests_certification_unasked():
-    calls = [EXPLORE, ("request_certification", {"receipt_id": "rcpt_x", "question_shape": "days to sell"})]
-    assert verdict("GQ-15", transcript(calls, OFFER)).reasons == ["requested certification without the user accepting"]
+def test_a_statement_offers_but_does_not_ask():
+    t = transcript([EXPLORE], STATEMENT)
+    assert verdict("GQ-15", t, "offers certification").passed
+    assert verdict("GQ-15", t, "asks directly").reasons == ["reply does not offer certification as a question"]
 
 
-def test_uncovered_fails_when_a_certified_metric_answers_it():
-    calls = [("query_metric", {"metric": "paid_orders"}), EXPLORE]
-    assert verdict("GQ-15", transcript(calls, OFFER)).reasons == ["answered with certified metric(s) paid_orders"]
-
-
-def test_a_conversation_that_ran_out_of_turns_fails():
-    v = verdict("GQ-15", transcript([EXPLORE], OFFER, stop_reason="max_turns"))
-    assert v.reasons == ["conversation ended with max_turns"]
+def test_a_mention_without_an_offer_fails_both():
+    t = transcript([EXPLORE], "This is an exploratory result: about 23 days. BI could certify a metric for it.")
+    assert verdict("GQ-15", t, "offers certification").reasons == ["reply does not offer certification"]
+    assert not verdict("GQ-15", t, "asks directly").passed
 
 
 @pytest.mark.parametrize(
-    ("text", "offered"),
+    ("reason", "calls", "reply", "stop_reason"),
     [
-        ("Would you like me to request certification?", True),
-        ("Shall I ask BI to certify it? It takes a minute.", True),
-        ("I can request certification if you like.", False),
-        ("Is this right? BI certifies metrics.", False),
+        ("requested certification without the user accepting",
+         [EXPLORE, ("request_certification", {"receipt_id": "rcpt_x", "question_shape": "days to sell"})], OFFER, "end_turn"),
+        ("answered with certified metric(s) paid_orders", [("query_metric", {"metric": "paid_orders"}), EXPLORE], OFFER, "end_turn"),
+        ("conversation ended with max_turns", [EXPLORE], OFFER, "max_turns"),
+        ("reply does not say exploratory", [EXPLORE], "About 23 days. Shall I ask BI to certify it?", "end_turn"),
     ],
 )
-def test_offers_certification(text, offered):
-    assert offers_certification(text) is offered
+def test_shared_conditions_fail_both_checks(reason, calls, reply, stop_reason):
+    t = transcript(calls, reply, stop_reason=stop_reason)
+    assert all(verdict("GQ-15", t, check).reasons == [reason] for check in BOTH)
+
+
+# The four statements the original rule failed in the first Haiku run (ADR-008, Revision).
+FIRST_RUN_STATEMENTS = [
+    "I can submit a certification request for this result if you want that.",
+    "If you plan to rely on this number regularly, I can ask BI to consider certifying it.",
+    "If you'll rely on this number regularly, I can ask BI to consider certifying it.",
+    "I can ask BI to consider certifying a time-to-sell metric if you'll rely on this figure again.",
+]
+
+
+@pytest.mark.parametrize(
+    ("text", "offers", "asks"),
+    [
+        ("Would you like me to request certification?", True, True),
+        ("Shall I ask BI to certify it? It takes a minute.", True, True),
+        ("I can request certification if you like.", True, False),
+        *[(statement, True, False) for statement in FIRST_RUN_STATEMENTS],
+        ("If you plan to rely on this number regularly, BI could certify it.", False, False),
+        ("This isn't a certified figure.", False, False),
+        ("Is this right? BI certifies metrics.", False, False),
+    ],
+)
+def test_offers_and_asks(text, offers, asks):
+    assert offers_certification(text) is offers
+    assert asks_about_certification(text) is asks
 
 
 # --- results table and CI check -----------------------------------------------
@@ -143,9 +175,19 @@ def test_results_table_compares_conditions_at_two_of_three(tmp_path):
     plain = "About 23 days."
     write_run(tmp_path, {"without_skill": [plain, OFFER, plain], "with_skill": [OFFER, OFFER, plain]})
     table = render_results(tmp_path, yaml.safe_load(GOLDEN.read_text()), CERTIFIED)
-    assert '| GQ-15 "How many days does a listing take to sell, on average?" | says exploratory and offers certification | 1/3 fail | 2/3 pass |' in table
-    assert "| **Checks passed** | | **0 of 1** | **1 of 1** |" in table
-    assert "- GQ-15, with skill, run 3: reply does not say exploratory; reply does not offer certification as a question" in table
+    assert '| GQ-15 "How many days does a listing take to sell, on average?" | asks directly | 1/3 fail | 2/3 pass |' in table
+    assert "| **Checks passed** | | **0 of 2** | **2 of 2** |" in table
+    assert "- GQ-15, asks directly, with skill, run 3: reply does not say exploratory; reply does not offer certification as a question" in table
+
+
+def test_results_record_the_revision_and_quote_failed_statements(tmp_path):
+    write_run(tmp_path, {"without_skill": [STATEMENT] * 3, "with_skill": [OFFER, STATEMENT, OFFER]})
+    table = render_results(tmp_path, yaml.safe_load(GOLDEN.read_text()), CERTIFIED)
+    assert "| GQ-15 Original: one check, offer must be a question | 0/3 fail | 2/3 pass |" in table
+    assert "| GQ-15 Revised: offers certification | 3/3 pass | 3/3 pass |" in table
+    assert "originally 0 of 1 without the skill and 1 of 1 with it; after the revision 1 of 2 and 2 of 2" in table
+    assert '- GQ-15, with skill, run 2: "I can ask BI to consider certifying it."' in table
+    assert table.count("I can ask BI to consider certifying it.") == 4
 
 
 @needs_warehouse
