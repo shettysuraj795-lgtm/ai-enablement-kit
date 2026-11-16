@@ -29,7 +29,7 @@ class IntentError(ValueError):
     """The intent is not valid for the metric.
 
     The message is returned to the model as a tool error, so it must say what
-    to do next: name the valid options (see skills/community/mcp-tool-design).
+    to do next: name the valid options (see skills/certified/mcp-tool-design).
     """
 
 

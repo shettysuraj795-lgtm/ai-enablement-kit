@@ -6,7 +6,7 @@ description: >-
   arguments, adding a raw-query escape hatch, or deciding when a prototype
   should be handed off.
 metadata:
-  version: 0.1.0
+  version: 1.0.0
   owner: ai-enablement
   requirements: [GR-01, GR-02, GR-03, GR-04, GR-05, GR-06, GR-07, GR-08]
 ---
@@ -92,7 +92,7 @@ This skill guides design; it enforces nothing. The controls live in the server a
 
 ## Evals
 
-This is a design skill, so its eval is evidence of use ([CONTRIBUTING](../../../CONTRIBUTING.md#the-promotion-bar)). The evidence will be the example server in [`examples/governed-analytics-mcp/`](../../../examples/governed-analytics-mcp/), built with this skill, and a passing `guardrail-review` report on it. Both will be linked from `evals/README.md`.
+This is a design skill, so its eval is evidence of use. [`evals/README.md`](evals/README.md) links the build made with it, its design note, and both guardrail reviews: the first failed, the second passed after the fix.
 
 ## Checklist
 
