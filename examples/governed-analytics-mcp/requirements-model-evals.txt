@@ -1,0 +1,4 @@
+# Local only: model-in-the-loop evals (python -m governed_analytics.model_evals run).
+# CI never installs this; it re-checks committed transcripts without the SDK (ADR-008).
+-r requirements-dev.txt
+anthropic==2.8.0

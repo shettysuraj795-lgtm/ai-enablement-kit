@@ -7,3 +7,4 @@ private/
 __pycache__/
 .venv/
 examples/governed-analytics-mcp/logs/
+examples/governed-analytics-mcp/evals/model/.staging-*/
