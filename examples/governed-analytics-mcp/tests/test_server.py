@@ -58,6 +58,7 @@ def test_revenue_surfaces_its_three_options(config):
         "commission_revenue",
     ]
     assert all(o["meaning"] and o["certified"] for o in answer["options"])
+    assert answer["summary"] == "3 options: 3 certified, 0 uncertified."
     assert "ask which one they mean" in answer["next_step"]
 
 
@@ -65,6 +66,14 @@ def test_list_metrics_without_term_lists_catalogue_and_glossary(config):
     answer = call(config, {}, tool="list_metrics").structured_content
     assert len(answer["metrics"]) == 7
     assert answer["glossary"]["sales"] == ["gross_merchandise_value", "paid_orders"]
+
+
+def test_list_metrics_summary_counts_certified_and_uncertified(config):
+    answer = call(config, {}, tool="list_metrics").structured_content
+    assert answer["summary"] == (
+        "7 governed metrics: 6 certified, 1 uncertified (active_listings; their results are labelled exploratory)."
+    )
+    assert sum(not m["certified"] for m in answer["metrics"]) == 1
 
 
 def test_unknown_term_falls_back_to_catalogue(config):
@@ -92,8 +101,37 @@ def test_happy_path_returns_golden_answer_with_provenance(config):
     assert answer["rows"] == expected["result"]["rows"]
     assert answer["classification"] == "certified"
     assert answer["metric"]["name"] == "net_merchandise_value" and answer["metric"]["version"] == "1.0.0"
-    assert answer["time_range"] == expected["intent"]["time_range"]
-    assert answer["receipt_id"] in answer["how_to_report"]
+    assert answer["time_range"] == {"start": "2026-07-01", "end": "2026-10-01", "relative": "last_quarter"}
+    assert answer["period_worked_out_as_of"] == expected["intent"]["time_range"]["as_of"]
+    assert answer["data_snapshot"]["snapshot_at"]
+
+
+def test_how_to_report_gives_one_reference_for_bi_at_the_end(config):
+    answer = call(config, LAST_QUARTER).structured_content
+    how = answer["how_to_report"]
+    assert f"End the answer with 'Reference for BI: {answer['receipt_id']}', once." in how
+    assert "footnote, never as a table column" in how
+    assert how.count(answer["receipt_id"]) == 1
+
+
+def test_how_to_report_keeps_as_of_apart_from_the_data(config):
+    how = call(config, LAST_QUARTER).structured_content["how_to_report"]
+    assert "worked out as of that date; it is not the date of the data" in how
+    assert "Mention data_snapshot only if the user asks" in how
+
+
+def test_explicit_dates_have_no_as_of_to_report(config):
+    args = {**{k: v for k, v in LAST_QUARTER.items() if k != "period"}, "start": "2026-07-01", "end": "2026-10-01"}
+    answer = call(config, args).structured_content
+    assert answer["time_range"] == {"start": "2026-07-01", "end": "2026-10-01"}
+    assert "period_worked_out_as_of" not in answer
+
+
+def test_explore_sql_reports_reference_for_bi(config):
+    sql = "SELECT count(*) AS orders FROM marts.fct_orders"
+    answer = call(config, {"sql": sql}, tool="explore_sql").structured_content
+    assert f"'Reference for BI: {answer['receipt_id']}'" in answer["how_to_report"]
+    assert "Mention data_snapshot only if the user asks" in answer["how_to_report"]
 
 
 def test_receipt_is_written_and_replays(config):
@@ -163,3 +201,8 @@ def test_schema_rejection_is_still_traced(config):
 def test_missing_time_range_names_the_options(config):
     result = call(config, {"metric": "net_merchandise_value", "time_grain": "quarter"})
     assert result.is_error and "last_quarter" in result.content[0].text
+
+
+def test_uncertified_option_is_counted_in_summary(config):
+    answer = call(config, {"term": "listings"}, tool="list_metrics").structured_content
+    assert answer["summary"] == "1 option: 0 certified, 1 uncertified (active_listings; their results are labelled exploratory)."

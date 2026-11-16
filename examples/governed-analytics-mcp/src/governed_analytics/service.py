@@ -88,6 +88,7 @@ class QueryService:
             if options:
                 return {
                     "term": term,
+                    "summary": _count_line([self.catalogue[o.metric] for o in options], "option"),
                     "options": [
                         {**_summary(self.catalogue[o.metric]), "meaning": o.meaning} for o in options
                     ],
@@ -100,6 +101,7 @@ class QueryService:
                     ),
                 }
         return {
+            "summary": _count_line(list(self.catalogue.values()), "governed metric"),
             "metrics": [_summary(m) for m in sorted(self.catalogue.values(), key=lambda m: m.name)],
             "glossary": {t: [o.metric for o in opts] for t, opts in sorted(self.glossary.items())},
             "next_step": (
@@ -167,15 +169,18 @@ class QueryService:
                 "unit": definition.unit,
                 "owner": definition.owner,
             },
-            "time_range": receipt["intent"]["time_range"],
+            **_period(receipt["intent"]["time_range"]),
             "columns": columns,
             "rows": rows,
             "truncated": truncated,
             "receipt_id": receipt["receipt_id"],
+            "data_snapshot": receipt["data_snapshot"],
             "how_to_report": (
                 f"Name the metric ({definition.name} v{definition.version}), say the result is "
-                f"{classification}, state the time range, and quote receipt {receipt['receipt_id']}."
+                f"{classification} and state the time range."
                 + (f" Only the first {len(rows)} rows are shown." if truncated else "")
+                + _PERIOD_NOTE
+                + _reference_note(receipt["receipt_id"])
             ),
         }
 
@@ -198,10 +203,13 @@ class QueryService:
             "rows": rows,
             "truncated": truncated,
             "receipt_id": receipt["receipt_id"],
+            "data_snapshot": receipt["data_snapshot"],
             "how_to_report": (
-                "Say plainly that this is an exploratory result, not a certified metric, and quote receipt "
-                f"{receipt['receipt_id']}. If the user will rely on it again, offer to call "
-                "request_certification with this receipt ID." + (f" Only the first {len(rows)} rows are shown." if truncated else "")
+                "Say plainly that this is an exploratory result, not a certified metric. If the user will rely "
+                "on it again, offer to call request_certification with this receipt ID."
+                + (f" Only the first {len(rows)} rows are shown." if truncated else "")
+                + " Mention data_snapshot only if the user asks how current the data is."
+                + _reference_note(receipt["receipt_id"])
             ),
         }
 
@@ -342,6 +350,37 @@ def _summary(metric: Metric) -> dict[str, Any]:
         "version": metric.version,
         "certified": metric.certified,
     }
+
+
+def _count_line(metrics: list[Metric], noun: str) -> str:
+    """How many metrics are certified, so none is described as certified by default."""
+    uncertified = sorted(m.name for m in metrics if not m.certified)
+    certified = len(metrics) - len(uncertified)
+    line = f"{len(metrics)} {noun}{'' if len(metrics) == 1 else 's'}: {certified} certified, {len(uncertified)} uncertified"
+    if uncertified:
+        line += f" ({', '.join(uncertified)}; their results are labelled exploratory)"
+    return line + "."
+
+
+def _period(time_range: dict[str, str]) -> dict[str, Any]:
+    """The receipt's time range for the reply. The as-of date is when the period was worked out, not the data's date."""
+    period = {"time_range": {k: v for k, v in time_range.items() if k != "as_of"}}
+    if "relative" in time_range:
+        period["period_worked_out_as_of"] = time_range["as_of"]
+    return period
+
+
+_PERIOD_NOTE = (
+    " If period_worked_out_as_of is present, say the period was worked out as of that date; it is not the "
+    "date of the data. Mention data_snapshot only if the user asks how current the data is."
+)
+
+
+def _reference_note(receipt_id: str) -> str:
+    return (
+        f" End the answer with 'Reference for BI: {receipt_id}', once. If the answer reports several "
+        "results, list their references in a footnote, never as a table column."
+    )
 
 
 def _describe_filter(f: Filter) -> str:

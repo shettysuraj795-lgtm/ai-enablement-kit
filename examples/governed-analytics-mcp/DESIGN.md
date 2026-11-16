@@ -6,10 +6,10 @@ The design note that [`mcp-tool-design`](../../skills/certified/mcp-tool-design/
 
 | Tool | Intent sentence | Arguments | Returns |
 |---|---|---|---|
-| `list_metrics` | "What can I ask about?" / "What could *revenue* mean?" | optional `term` | The catalogue and glossary; with a known `term`, its governed options, their meanings and the next step (ask, or name the choice) |
+| `list_metrics` | "What can I ask about?" / "What could *revenue* mean?" | optional `term` | A summary line counting certified and uncertified metrics, then the catalogue and glossary; with a known `term`, its governed options, their meanings and the next step (ask, or name the choice) |
 | `describe_metric` | "What exactly does *metric* mean?" | `metric` | Definition, unit, version, certified flag, owner, grains, dimensions, filters always applied, glossary terms that lead to it |
-| `query_metric` | "What was *metric* for *period*, by *dimension*?" | `metric`, `time_grain`, `period` or `start`+`end`, `dimensions`, `filters`, optional `question` | Rows, metric definition and version, `certified`/`exploratory` label, resolved time range, receipt ID, reporting instruction |
-| `explore_sql` | "No metric covers this; can you look it up anyway?" | `sql` (one SELECT over the marts), optional `question` | Rows, the SQL that ran, label always `exploratory`, receipt ID, and an instruction to say it is exploratory and suggest certification if it will be reused |
+| `query_metric` | "What was *metric* for *period*, by *dimension*?" | `metric`, `time_grain`, `period` or `start`+`end`, `dimensions`, `filters`, optional `question` | Rows, metric definition and version, `certified`/`exploratory` label, resolved time range, `period_worked_out_as_of` for a relative period, receipt ID, data snapshot, reporting instruction |
+| `explore_sql` | "No metric covers this; can you look it up anyway?" | `sql` (one SELECT over the marts), optional `question` | Rows, the SQL that ran, label always `exploratory`, receipt ID, data snapshot, and an instruction to say it is exploratory and suggest certification if it will be reused |
 
 | `request_certification` | "Can BI make this an official number?" | `receipt_id` (exploratory), `question_shape` (general terms, at most 300 characters) | A request ID; appends to `certification_requests.jsonl`, linked to the receipt's SQL fingerprint |
 
@@ -45,7 +45,7 @@ All seven metrics from [metric catalogue v0](../../docs/contracts/metric-catalog
 | 1. Name the intents | Five intent-named tools (`list_metrics`, `describe_metric`, `query_metric`, `explore_sql`, `request_certification`); no `run_sql` on the governed path | `server.py` |
 | 2. Type every argument | `metric`, `dimensions`, `time_grain`, `period` and filter `op` are enums built from the catalogue; dates are typed; relative periods are resolved on the server against a recorded as-of date | `server.py`, `periods.py` |
 | 3. Compile deterministically | The model fills in the intent; `compile_intent` produces the SQL; dimensions and filters are sorted so order doesn't matter | `compiler.py` |
-| 4. Provenance on every result | The response carries the metric's definition and version, the label, the time range and a receipt ID, plus an instruction to report them | `service.py` |
+| 4. Provenance on every result | The response carries the metric's definition and version, the label, the time range and a receipt ID, plus an instruction to report them: the reference once, last, as "Reference for BI: <id>" (a footnote when there are several); the as-of date as when the period was worked out, never as the data date; the data snapshot only if asked | `service.py` |
 | 5. Errors as guidance | Compiler and service errors become `is_error` results that name the valid options; schema rejections list the allowed values | `compiler.py`, `service.py` |
 | 6. Least privilege | Read-only DuckDB connection; marts schema only; row cap and timeout; PII columns can't be named because they aren't in any enum | `service.py`, `catalogue` |
 | 7. Trace every call | MCP middleware wraps the dispatcher, so schema rejections are traced too; tools only annotate the span | `tracing.py` |

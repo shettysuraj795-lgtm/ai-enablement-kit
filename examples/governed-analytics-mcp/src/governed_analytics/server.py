@@ -31,8 +31,9 @@ GRAINS = ("day", "week", "month", "quarter", "year")
 
 INSTRUCTIONS = (
     "Governed business metrics. Use list_metrics and describe_metric to choose a metric, answer with "
-    "query_metric, and always report "
-    "the metric name and version, whether the result is certified, the time range and the receipt ID."
+    "query_metric. Report the metric name and version, whether the result is certified and the time range, "
+    "and end with 'Reference for BI: <receipt_id>' once (several results: references in a footnote). "
+    "Follow each result's how_to_report."
 )
 
 
@@ -66,7 +67,8 @@ def build_server(config: Config, catalogue: dict[str, Metric] | None = None) -> 
         name="list_metrics",
         description=(
             "List the governed metrics, or, with `term`, the metrics an everyday word could mean "
-            "(for example 'revenue' or 'sales'). Call this when the user's wording could fit more than one metric."
+            "(for example 'revenue' or 'sales'). Call this when the user's wording could fit more than one metric. "
+            "Its summary line says how many are certified: describe only those as certified."
         ),
     )
     async def list_metrics(
@@ -206,7 +208,7 @@ def _describe(catalogue: dict[str, Metric]) -> str:
     lines = [
         "Get a governed business metric. The server compiles the SQL, so the same request always "
         "gives the same number. Results include the metric definition, a certified or exploratory "
-        "label and a receipt ID; tell the user all three.",
+        "label and a receipt ID; follow the result's how_to_report.",
         "",
         "Metrics:",
     ]
