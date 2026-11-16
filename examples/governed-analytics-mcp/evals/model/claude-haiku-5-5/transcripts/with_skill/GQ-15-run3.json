@@ -1,0 +1,103 @@
+{
+  "schema_version": 1,
+  "question_id": "GQ-15",
+  "condition": "with_skill",
+  "run": 3,
+  "model": "claude-haiku-5-5",
+  "effort": "medium",
+  "question": "How many days does a listing take to sell, on average?",
+  "persona": "sales_ops_lead",
+  "as_of": "2026-11-14",
+  "created_at": "2026-11-16T14:46:10Z",
+  "commit": "459e1ccf6d699990df89af686595e229b4837375",
+  "skill_version": "0.2.0",
+  "fingerprints": {
+    "tools": "sha256:074919cf736c094ea3098ff958c2cffa32603e8d1e9caa25e67c4465703a68b4",
+    "skill": "sha256:73949689d9acb0872295fd5e65e844638c7afb5b65c10f07597bd79701e58453"
+  },
+  "messages": [
+    {
+      "role": "user",
+      "content": "How many days does a listing take to sell, on average?"
+    },
+    {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "thinking"
+        },
+        {
+          "type": "tool_use",
+          "id": "toolu_018DsdPDhMzDNQLQR7EKpqGF",
+          "name": "list_metrics",
+          "input": {
+            "term": "days to sell"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "tool_result",
+          "tool_use_id": "toolu_018DsdPDhMzDNQLQR7EKpqGF",
+          "content": "{\n  \"summary\": \"7 governed metrics: 6 certified, 1 uncertified (active_listings; their results are labelled exploratory).\",\n  \"metrics\": [\n    {\n      \"name\": \"active_listings\",\n      \"summary\": \"Number of distinct listings that were active on at least one day in the period.\",\n      \"unit\": \"count\",\n      \"version\": \"0.1.0\",\n      \"certified\": false\n    },\n    {\n      \"name\": \"commission_revenue\",\n      \"summary\": \"Commission charged to dealers on paid orders, minus commission refunded to dealers when orders are refunded, in EUR.\",\n      \"unit\": \"EUR\",\n      \"version\": \"1.0.0\",\n      \"certified\": true\n    },\n    {\n      \"name\": \"gross_merchandise_value\",\n      \"summary\": \"Value of paid orders before refunds, in EUR.\",\n      \"unit\": \"EUR\",\n      \"version\": \"1.0.0\",\n      \"certified\": true\n    },\n    {\n      \"name\": \"net_merchandise_value\",\n      \"summary\": \"Value of paid orders minus refunds, in EUR.\",\n      \"unit\": \"EUR\",\n      \"version\": \"1.0.0\",\n      \"certified\": true\n    },\n    {\n      \"name\": \"paid_orders\",\n      \"summary\": \"Number of paid orders, counted on the order date.\",\n      \"unit\": \"count\",\n      \"version\": \"1.0.0\",\n      \"certified\": true\n    },\n    {\n      \"name\": \"refund_rate\",\n      \"summary\": \"Refunded value as a share of gross merchandise value, for paid orders.\",\n      \"unit\": \"ratio\",\n      \"version\": \"1.0.0\",\n      \"certified\": true\n    },\n    {\n      \"name\": \"take_rate\",\n      \"summary\": \"Commission charged to dealers as a share of gross merchandise value, for paid orders, before any commission is refunded.\",\n      \"unit\": \"ratio\",\n      \"version\": \"1.0.0\",\n      \"certified\": true\n    }\n  ],\n  \"glossary\": {\n    \"commission\": [\n      \"commission_revenue\",\n      \"take_rate\"\n    ],\n    \"listings\": [\n      \"active_listings\"\n    ],\n    \"revenue\": [\n      \"gross_merchandise_value\",\n      \"net_merchandise_value\",\n      \"commission_revenue\"\n    ],\n    \"sales\": [\n      \"gross_merchandise_value\",\n      \"paid_orders\"\n    ]\n  },\n  \"next_step\": \"No glossary entry for 'days to sell'. Pick the metric whose definition fits the question; call describe_metric for details.\"\n}",
+          "is_error": false
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "thinking"
+        },
+        {
+          "type": "text",
+          "text": "No governed metric covers time-to-sell, so I'll run an exploratory query over the marts."
+        },
+        {
+          "type": "tool_use",
+          "id": "toolu_01PXNkijf8AjCjPmQRH449T4",
+          "name": "explore_sql",
+          "input": {
+            "sql": "WITH first_listed AS (\n  SELECT listing_id, MIN(snapshot_date) AS listed_date\n  FROM marts.fct_listings\n  WHERE is_active\n  GROUP BY listing_id\n),\nfirst_sale AS (\n  SELECT listing_id, MIN(CAST(paid_at AS DATE)) AS sold_date\n  FROM marts.fct_orders\n  WHERE is_paid AND paid_at IS NOT NULL\n  GROUP BY listing_id\n)\nSELECT\n  COUNT(*) AS listings_sold,\n  AVG(DATE_DIFF('day', l.listed_date, s.sold_date)) AS avg_days_to_sell,\n  MEDIAN(DATE_DIFF('day', l.listed_date, s.sold_date)) AS median_days_to_sell\nFROM first_listed l\nJOIN first_sale s USING (listing_id)\nWHERE s.sold_date >= l.listed_date",
+            "question": "Average days from listing to sale across sold listings"
+          }
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "tool_result",
+          "tool_use_id": "toolu_01PXNkijf8AjCjPmQRH449T4",
+          "content": "{\n  \"classification\": \"exploratory\",\n  \"sql\": \"WITH first_listed AS (SELECT listing_id, MIN(snapshot_date) AS listed_date FROM marts.fct_listings WHERE is_active GROUP BY listing_id), first_sale AS (SELECT listing_id, MIN(CAST(paid_at AS DATE)) AS sold_date FROM marts.fct_orders WHERE is_paid AND NOT paid_at IS NULL GROUP BY listing_id) SELECT COUNT(*) AS listings_sold, AVG(DATE_DIFF('DAY', l.listed_date, s.sold_date)) AS avg_days_to_sell, MEDIAN(DATE_DIFF('DAY', l.listed_date, s.sold_date)) AS median_days_to_sell FROM first_listed AS l JOIN first_sale AS s USING (listing_id) WHERE s.sold_date >= l.listed_date\",\n  \"columns\": [\n    \"listings_sold\",\n    \"avg_days_to_sell\",\n    \"median_days_to_sell\"\n  ],\n  \"rows\": [\n    [\n      \"10493\",\n      \"40.611932\",\n      \"29.000000\"\n    ]\n  ],\n  \"truncated\": false,\n  \"receipt_id\": \"rcpt_01M7JD54P70J8XRCPT3ETFZR0G\",\n  \"data_snapshot\": {\n    \"snapshot_at\": \"2026-11-14T06:17:34.970169Z\",\n    \"dbt_invocation_id\": \"41081e58-cb50-4707-a979-63ee641277e4\"\n  },\n  \"how_to_report\": \"Say plainly that this is an exploratory result, not a certified metric. If the user will rely on it again, offer to call request_certification with this receipt ID. Mention data_snapshot only if the user asks how current the data is. End the answer with 'Reference for BI: rcpt_01M7JD54P70J8XRCPT3ETFZR0G', once. If the answer reports several results, list their references in a footnote, never as a table column.\"\n}",
+          "is_error": false
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "thinking"
+        },
+        {
+          "type": "text",
+          "text": "On average, a listing that sold took about **41 days** from its first active day to its first paid order (median 29 days). This is across all sold listings in the data, 10,493 in total.\n\nThis is an **exploratory** result, not a certified figure. No governed metric covers time-to-sell. I measured it as the first day a listing appears as active in the listings snapshots, to the date of its first paid order. Listings that were never sold are excluded, and the start date is only as early as the snapshot history allows.\n\nWould you like me to ask BI to certify a metric for this? If you're going to rely on this number again, I can send the request.\n\nReference for BI: rcpt_01M7JD54P70J8XRCPT3ETFZR0G"
+        }
+      ]
+    }
+  ],
+  "stop_reason": "end_turn",
+  "usage": {
+    "input_tokens": 18575,
+    "output_tokens": 1087,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0
+  },
+  "cost_usd": 0.002401
+}
