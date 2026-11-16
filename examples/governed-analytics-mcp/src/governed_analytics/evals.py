@@ -4,7 +4,7 @@ Checks the tool layer, with no model involved: every expected intent is sent
 to the server as tool arguments, and the result, label and receipt are
 compared with the golden answer. Behaviour that needs a model in the loop
 (asking about an ambiguous term, offering certification) is reported as
-`needs-model`, never as a pass.
+`needs-model`, never as a pass; model_evals.py covers it locally (ADR-008).
 
     python -m governed_analytics.evals            # exit 1 if any check fails
     python -m governed_analytics.evals --json out.json

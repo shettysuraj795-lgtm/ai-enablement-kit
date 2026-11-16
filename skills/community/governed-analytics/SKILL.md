@@ -90,4 +90,4 @@ This skill covers what the server can't enforce: asking about ambiguous terms, n
 
 ## Evals
 
-This is a behaviour skill. Its cases are the golden questions' `needs-model` checks (GQ-03, GQ-04, GQ-10, GQ-15) plus a run without this skill for comparison. They're planned once model-in-the-loop evals are enabled; until then the skill can't be promoted.
+This is a behaviour skill. Its cases are the golden questions' `needs-model` checks (GQ-03, GQ-04, GQ-10, GQ-15), each run with and without this skill by `python -m governed_analytics.model_evals run` ([ADR-008](../../../docs/adr/008-model-in-the-loop-evals.md)), and re-judged in CI from committed transcripts. Four cases are fewer than the five the promotion bar asks for, so the skill stays in community until a fifth is added.

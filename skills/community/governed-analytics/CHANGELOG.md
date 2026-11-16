@@ -2,6 +2,8 @@
 
 ## 0.2.0 (16 Nov 2026)
 
+- Evals section: the four cases now run with `model_evals` (ADR-008); no change to the steps.
+
 - The reference is shown once, as the answer's last line: "Reference for BI: <id>". With several results, references go in a footnote, never a table column.
 - The as-of date is reported as the date the period was worked out, never as the data date. The data snapshot is mentioned only if the user asks.
 - Step 1 uses `list_metrics`' new summary line, so uncertified metrics aren't described as certified.

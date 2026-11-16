@@ -110,6 +110,8 @@ The full hand-off pack, produced with [`handoff-pack`](../../skills/community/ha
 
 Model-in-the-loop checks are reported as `needs-model`, never counted as passes.
 
+The `needs-model` checks run locally with `python -m governed_analytics.model_evals run` ([ADR-008](../../docs/adr/008-model-in-the-loop-evals.md)). It needs `requirements-model-evals.txt` and `ANTHROPIC_API_KEY` in the environment. The model (default `claude-haiku-5-5`, or `--model` / `KIT_EVAL_MODEL`) gets the five tools and answers GQ-03, GQ-04, GQ-10 and GQ-15, three times with the `governed-analytics` skill and three times without. Fixed rules in `model_judge.py` judge the transcripts, with no LLM-as-judge, and a check passes at 2 of 3. The command prints an estimated cost and asks before running, stops above `--max-usd` (default $1), and stops at the first billing failure. Results and transcripts go to `evals/model/<model>/`. CI runs `model_evals check`, which re-judges them without calling a model and warns when they're stale because the tools or skill have changed.
+
 ## Trace queries
 
 `python -m governed_analytics.trace_report` loads `traces.jsonl` and `receipts.jsonl` into an in-memory DuckDB and runs the named queries in [`analytics/trace_queries.sql`](analytics/trace_queries.sql). The same file runs in the DuckDB CLI.

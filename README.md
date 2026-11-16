@@ -25,7 +25,7 @@ A reusable kit for helping non-technical teams adopt AI assistants without losin
 - Golden-question evals, guardrail reviews, and a hand-off pack.
 
 **Deliberately not built**
-- **Scheduled live model evals.** Model-in-the-loop checks are reported as `needs-model`, never counted as passes. Running them on a schedule is an ML / data science hand-off.
+- **Scheduled live model evals.** Model-in-the-loop evals are a local command whose transcripts are committed and re-judged in CI by fixed rules ([ADR-008](docs/adr/008-model-in-the-loop-evals.md)). Running them on a schedule, tracking trends and adding LLM-as-judge are an ML / data science hand-off.
 - **A production semantic layer.** A YAML catalogue shows the principle ([ADR-001](docs/adr/001-metric-catalogue.md)).
 - **Hosted tracing.** JSON lines queried in DuckDB, ready for an OTLP exporter ([ADR-003](docs/adr/003-trace-log.md)).
 - **Warehouse roles and SSO, a review UI, and user research.** The personas are synthetic and labelled as assumptions.
@@ -46,7 +46,7 @@ A reusable kit for helping non-technical teams adopt AI assistants without losin
 - **Two guardrail reviews:** the [first](examples/governed-analytics-mcp/reports/guardrail-review-2026-11-14.md) failed 7 of 8, because nothing ran question-text retention. The [second](examples/governed-analytics-mcp/reports/guardrail-review-2026-11-14-2.md) passed 8 of 8 after the server enforced it. The failing report is kept.
 - **The `COPY TO` gap:** the first read-only tests showed a read-only DuckDB connection could still write files with `COPY ... TO`. External access is now off, and the tests fail without the fix ([changelog](requirements/CHANGELOG.md)).
 - **The promotion PR:** [#2](https://github.com/shettysuraj795-lgtm/ai-enablement-kit/pull/2) moved `mcp-tool-design` to certified, linking the build and both reports.
-- **On a small model:** the reporting behaviour (asking about "revenue", labels, the reference for BI) was demonstrated on Claude Haiku. `[PLACEHOLDER: link to the Haiku run]`
+- **On a small model:** four behaviour checks (asking about "revenue", naming the metric, offering certification) ran on Claude Haiku, with the skill and without it, three times each, judged by fixed rules. `[PLACEHOLDER: link examples/governed-analytics-mcp/evals/model/claude-haiku-5-5/results.md once committed]`
 
 ## Where to look first
 
@@ -67,6 +67,8 @@ data/.venv/bin/python data/generate.py
 data/.venv/bin/pytest -q
 PYTHONPATH=src data/.venv/bin/python -m governed_analytics.evals
 ```
+
+The model-in-the-loop evals are local only and cost a few cents: `pip install -r requirements-model-evals.txt`, then `PYTHONPATH=src python -m governed_analytics.model_evals run` with `ANTHROPIC_API_KEY` set.
 
 To connect Claude Desktop, run `python -m governed_analytics.server` over stdio with `PYTHONPATH=src`. The settings are listed in [DESIGN.md](examples/governed-analytics-mcp/DESIGN.md#configuration).
 
