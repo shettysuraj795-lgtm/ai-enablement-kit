@@ -26,6 +26,7 @@ A reusable kit for helping non-technical teams adopt AI assistants without losin
 
 **Deliberately not built**
 - **Scheduled live model evals.** Model-in-the-loop evals are a local command whose transcripts are committed and re-judged in CI by fixed rules ([ADR-008](docs/adr/008-model-in-the-loop-evals.md)). Running them on a schedule, tracking trends and adding LLM-as-judge are an ML / data science hand-off.
+- **Harder model evals.** On four single-turn questions with descriptive tools, the tools already do most of the skill's work. Finding what the skill adds needs harder checks, such as longer conversations and weaker tool descriptions.
 - **A production semantic layer.** A YAML catalogue shows the principle ([ADR-001](docs/adr/001-metric-catalogue.md)).
 - **Hosted tracing.** JSON lines queried in DuckDB, ready for an OTLP exporter ([ADR-003](docs/adr/003-trace-log.md)).
 - **Warehouse roles and SSO, a review UI, and user research.** The personas are synthetic and labelled as assumptions.
@@ -46,7 +47,7 @@ A reusable kit for helping non-technical teams adopt AI assistants without losin
 - **Two guardrail reviews:** the [first](examples/governed-analytics-mcp/reports/guardrail-review-2026-11-14.md) failed 7 of 8, because nothing ran question-text retention. The [second](examples/governed-analytics-mcp/reports/guardrail-review-2026-11-14-2.md) passed 8 of 8 after the server enforced it. The failing report is kept.
 - **The `COPY TO` gap:** the first read-only tests showed a read-only DuckDB connection could still write files with `COPY ... TO`. External access is now off, and the tests fail without the fix ([changelog](requirements/CHANGELOG.md)).
 - **The promotion PR:** [#2](https://github.com/shettysuraj795-lgtm/ai-enablement-kit/pull/2) moved `mcp-tool-design` to certified, linking the build and both reports.
-- **On a small model:** four behaviour checks (asking about "revenue", naming the metric, offering certification) ran on Claude Haiku, with the skill and without it, three times each, judged by fixed rules. `[PLACEHOLDER: link examples/governed-analytics-mcp/evals/model/claude-haiku-5-5/results.md once committed]`
+- **On a small model:** Claude Haiku 5.5 answered the four behaviour questions three times with the `governed-analytics` skill and three times without, judged by fixed rules ([results](examples/governed-analytics-mcp/evals/model/claude-haiku-5-5/results.md)). It offered certification with or without the skill; the skill's measurable effect was asking the user directly (2 of 3 runs, against 0 of 3). The certification rule was revised after reading the transcripts, and the original result is shown beside the revised one. The sample is small: three runs per question on one model.
 
 ## Where to look first
 
