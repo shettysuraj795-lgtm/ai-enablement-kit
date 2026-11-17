@@ -2,7 +2,23 @@
 
 A reusable kit for helping non-technical teams adopt AI assistants without losing trust in the results: agent skills, hard guardrails, contribution tiers, contracts and decision records. It is demonstrated on one worked example, **self-serve analytics drift**.
 
-> **Demo video:** `[PLACEHOLDER: demo video link]`
+## See it work
+
+Taken in Claude Desktop on Claude Haiku 5.5, with the server connected.
+
+**An ambiguous question.** "Revenue" could mean three governed metrics, so the agent asks which one is meant.
+
+![The agent asks which revenue metric is meant](docs/images/01-ambiguous-revenue.png)
+
+**A certified answer.** The figure comes with its definition, version and a reference BI can replay.
+
+![A certified net merchandise value with its definition and receipt](docs/images/02-certified-answer.png)
+
+**An exploratory answer.** No metric covers the question, so the answer is labelled exploratory and certification is offered.
+
+![An exploratory time-to-sell estimate with an offer to certify it](docs/images/03-exploratory-answer.png)
+
+Asked a day apart, the same question gave a median of 31 days (Q3 listings only) and 28 days (all listings). Both were labelled exploratory, which is the point: exploratory answers can drift, so only certified metrics go into reports.
 
 ## The problem
 
@@ -14,7 +30,38 @@ A reusable kit for helping non-technical teams adopt AI assistants without losin
 - **Hard guardrails versus soft ones.** Skills shape behaviour, and the model follows them probabilistically. Anything that must always hold is one of eight requirements in [`requirements/`](requirements/), enforced in code, config or CI and tested by ID (`pytest -m gr04`). A skill is never the only control.
 - **Certified versus exploratory, for metrics and for skills.** Certified metrics are owned by BI and change-controlled. Anything else is answered by guarded SQL, labelled *exploratory*, and can be sent to BI for certification. Skills follow the same pattern: every skill starts in `community/` and reaches `certified/` only through a promotion PR with an owner, an eval and a version ([CONTRIBUTING](CONTRIBUTING.md)).
 
-> `[PLACEHOLDER: architecture diagram]`
+**How a question becomes a number.** The model sends an intent; the server validates, compiles, executes and records it ([architecture](examples/governed-analytics-mcp/architecture.md)).
+
+```mermaid
+flowchart LR
+    U["User"]
+    AG["Agent in Claude Desktop<br/>(the model runs here)"]
+
+    subgraph SRV["MCP server"]
+        direction TB
+        S1["1 Validate against<br/>the catalogue"]
+        S2["2 Compile the intent<br/>into SQL"]
+        S3["3 Execute read-only,<br/>capped"]
+        S4["4 Record receipt<br/>and trace"]
+        S1 --> S2 --> S3 --> S4
+    end
+
+    CAT[/"Metric catalogue<br/>(YAML)"/]
+    WH[("Warehouse<br/>(marts)")]
+    LOG[/"Receipts + traces"/]
+
+    U <-- "question / answer" --> AG
+    AG -- "intent" --> S1
+    CAT -- "definitions" --> S1
+    S3 <-- "SQL / rows" --> WH
+    S4 -- "receipt, trace" --> LOG
+    S4 -- "rows + definition +<br/>label + receipt ID" --> AG
+
+    classDef governed fill:#dcfce7,stroke:#22a05a,color:#111
+    classDef person fill:#dbeafe,stroke:#3b82f6,color:#111
+    class CAT governed
+    class U person
+```
 
 ## Built / Deliberately not built / Who it hands off to
 
@@ -30,6 +77,7 @@ A reusable kit for helping non-technical teams adopt AI assistants without losin
 - **A production semantic layer.** A YAML catalogue shows the principle ([ADR-001](docs/adr/001-metric-catalogue.md)).
 - **Hosted tracing.** JSON lines queried in DuckDB, ready for an OTLP exporter ([ADR-003](docs/adr/003-trace-log.md)).
 - **Warehouse roles and SSO, a review UI, and user research.** The personas are synthetic and labelled as assumptions.
+- **Tool selection depends on context.** A bare question such as "How many days does a listing take to sell?" was answered from a web search; with "on our marketplace" it used the governed tools. In a rollout, the connector and skill descriptions should name the business's own terms.
 
 **Who it hands off to**
 
@@ -39,6 +87,28 @@ A reusable kit for helping non-technical teams adopt AI assistants without losin
 | ML / data science | Live model evals, monitoring, LLM-as-judge |
 | Tool enablement | Packaging the server as a connector, distributing certified skills |
 | IT | Read-only warehouse role, PII masking, SSO, log retention |
+
+## Rolling this out
+
+| Phase | Who | Gate to move on |
+|---|---|---|
+| 1. Pilot | Finance and BI | Finance's recurring review figures come from certified metrics, and BI can replay any disputed number from its receipt |
+| 2. Widen | Sales/Ops | The pilot measures hold with a second team, and the most-repeated exploratory questions have been reviewed by BI |
+| 3. Hand off | Tool enablement, IT, ML / data science | Connector packaged, read-only role and SSO in place, and live evals and monitoring owned outside this kit |
+
+**Success measures**, from the trace report (`python -m governed_analytics.trace_report`, queries in [`trace_queries.sql`](examples/governed-analytics-mcp/analytics/trace_queries.sql)):
+
+| Measure | Query | Why it matters |
+|---|---|---|
+| Certified share of data answers, per team | `certified_share_by_persona` | The headline: how many of each team's numbers come from certified definitions |
+| Error rate and latency | `overview`, `by_tool`, `errors_by_reason` | Whether the tools work well enough that people keep using them |
+| Guardrail hits | `guardrail_hits` | Which hard controls fire, and how often |
+| Repeated exploratory questions | `promotion_candidates`, `certification_requests` | BI's queue of new metrics to certify |
+| Uncertified metrics in use | `uncertified_metric_usage` | Definitions to certify or retire |
+
+**What changes for people.** Finance and Sales/Ops ask in their assistant as before, but a figure for a report now comes with a metric name, a version and a receipt, and an ambiguous word gets a question back instead of a guess. BI stops re-deriving numbers by hand: they replay a receipt, and they get a queue of questions people keep asking instead of ad-hoc requests.
+
+Targets for these measures are set with the pilot team, not proposed here, because the personas are assumptions ([discovery brief](examples/governed-analytics-mcp/discovery-brief.md)).
 
 ## Evidence
 
@@ -51,8 +121,8 @@ A reusable kit for helping non-technical teams adopt AI assistants without losin
 
 ## Where to look first
 
-1. **Discovery brief:** `[PLACEHOLDER: discovery brief link]`
-2. **Architecture:** `[PLACEHOLDER: architecture.md link]`
+1. [**Discovery brief**](examples/governed-analytics-mcp/discovery-brief.md): the personas, their questions and what was assumed.
+2. [**Architecture**](examples/governed-analytics-mcp/architecture.md): how a question becomes a number, where the data comes from, and how answers are checked afterwards.
 3. [**DESIGN.md**](examples/governed-analytics-mcp/DESIGN.md): the tools, guardrails and known limits.
 4. [**Hand-off pack**](examples/governed-analytics-mcp/handoff/): a runbook for Finance, an access spec for IT, and responsibilities.
 
