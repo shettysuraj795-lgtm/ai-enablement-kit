@@ -96,7 +96,7 @@ flowchart LR
 | 2. Widen | Sales/Ops | The pilot measures hold with a second team, and the most-repeated exploratory questions have been reviewed by BI |
 | 3. Hand off | Tool enablement, IT, ML / data science | Connector packaged, read-only role and SSO in place, and live evals and monitoring owned outside this kit |
 
-**Success measures**, from the trace report (`python -m governed_analytics.trace_report`, queries in [`trace_queries.sql`](examples/governed-analytics-mcp/analytics/trace_queries.sql)):
+**Success measures**, mostly from the trace report (`python -m governed_analytics.trace_report`, queries in [`trace_queries.sql`](examples/governed-analytics-mcp/analytics/trace_queries.sql)):
 
 | Measure | Query | Why it matters |
 |---|---|---|
