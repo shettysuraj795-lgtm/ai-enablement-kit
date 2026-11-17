@@ -101,6 +101,7 @@ flowchart LR
 | Measure | Query | Why it matters |
 |---|---|---|
 | Certified share of data answers, per team | `certified_share_by_persona` | The headline: how many of each team's numbers come from certified definitions |
+| Requests to BI to double-check a figure | Counted by BI | The pain the pilot set out to remove; it should fall as certified share rises |
 | Error rate and latency | `overview`, `by_tool`, `errors_by_reason` | Whether the tools work well enough that people keep using them |
 | Guardrail hits | `guardrail_hits` | Which hard controls fire, and how often |
 | Repeated exploratory questions | `promotion_candidates`, `certification_requests` | BI's queue of new metrics to certify |
